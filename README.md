@@ -21,14 +21,15 @@ It's a web app: plain HTML, CSS and JavaScript with no build step. Once it's hos
 Updates arrive automatically: after you publish a change, the app picks it up in the background and
 shows it the next time it's opened.
 
-### Hosting options (all free)
+### Hosting on GitHub Pages (free)
 
-The repository is private, so:
+1. Make the repo public: **Settings → General → Danger Zone → Change visibility**.
+2. **Settings → Pages → Build and deployment**: Source *Deploy from a branch*, branch `main`
+   (or the feature branch), folder `/ (root)`, **Save**.
+3. After a minute or so it's live at **https://jolyonbrown.github.io/blast-a-pic/**.
 
-- **Cloudflare Pages** or **Netlify**: connect the GitHub repo, set no build command, and set the
-  output directory to `/`. Works with private repos on the free plans.
-- **GitHub Pages**: Settings → Pages → Deploy from branch `main`, folder `/`. This needs a paid GitHub
-  plan for private repos, or the repo made public.
+It's designed for portrait. Landscape still works if the iPad gets turned, because a web app can't
+force iPadOS to stay in portrait.
 
 ## Running it locally
 
