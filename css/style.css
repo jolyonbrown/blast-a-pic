@@ -111,6 +111,49 @@ button { font-family: inherit; color: inherit; cursor: pointer; }
 }
 .chip:active, .pill:active, .round:active { transform: translateY(2px); box-shadow: 0 1px 0 rgba(150, 105, 60, 0.2); }
 
+/* ------------------------------------------------------------ about */
+
+#about {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+  padding: calc(var(--safe-top) + 16px) 16px calc(var(--safe-bottom) + 24px);
+}
+.about-back { position: absolute; top: calc(var(--safe-top) + 10px); left: 14px; }
+.about-card {
+  max-width: 460px;
+  margin: 40px auto 0;
+  background: var(--card);
+  border-radius: 28px;
+  padding: 24px 22px 22px;
+  text-align: center;
+  box-shadow: 0 6px 0 rgba(150, 105, 60, 0.18), 0 16px 40px rgba(150, 105, 60, 0.12);
+}
+.about-card h2 { margin: 6px 0 8px; font-size: 26px; font-weight: 900; color: var(--accent); }
+.about-card p { margin: 0 0 8px; font-size: 17px; font-weight: 600; color: var(--ink-soft); line-height: 1.4; }
+.secret { border: 0; background: none; padding: 0; display: block; margin: 0 auto; }
+.secret canvas { width: 150px; height: 150px; display: block; }
+.secret:active { transform: scale(0.96); }
+.secret-caption { font-size: 14px !important; font-style: italic; margin-bottom: 14px !important; }
+.links { display: grid; gap: 10px; margin-top: 18px; }
+.links a {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+  color: var(--ink);
+  background: #f6ecdf;
+  border-radius: 16px;
+  padding: 14px 16px;
+  font-size: 17px;
+  box-shadow: 0 3px 0 rgba(150, 105, 60, 0.18);
+}
+.links a span { color: var(--ink-soft); font-weight: 600; font-size: 15px; }
+.links a:active { transform: translateY(2px); box-shadow: none; }
+.links a.kofi { background: var(--accent); color: #fff; box-shadow: 0 3px 0 #563d99; }
+.links a.kofi span { color: rgba(255, 255, 255, 0.8); }
+
 /* ------------------------------------------------------------ play */
 
 #game { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; }

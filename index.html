@@ -25,7 +25,29 @@
     <footer class="menu-foot">
       <button id="sound-menu" class="chip" type="button">Sound: on</button>
       <button id="howto" class="chip" type="button">How to play</button>
+      <button id="about-btn" class="chip" type="button">About</button>
     </footer>
+  </section>
+
+  <section id="about" class="screen hidden">
+    <button id="about-back" class="round about-back" type="button" aria-label="Back to pictures">
+      <svg viewBox="0 0 24 24"><path d="M15 5 8 12l7 7" /></svg>
+    </button>
+    <div class="about-card">
+      <button id="secret" class="secret" type="button" aria-label="A secret level">
+        <canvas id="secret-art" width="10" height="10"></canvas>
+      </button>
+      <p id="secret-caption" class="secret-caption">Psst… tap me, if you dare.</p>
+      <h2>About Blast·a·Pic</h2>
+      <p>A little bead-blasting puzzle made by Jolyon Brown for his favourite puzzler.</p>
+      <p>No ads, no lives, no timers, no tricks. Just beads.</p>
+      <nav class="links">
+        <a href="https://jolyonbrown.com" target="_blank" rel="noopener"><b>Blog</b><span>jolyonbrown.com</span></a>
+        <a href="https://github.com/jolyonbrown" target="_blank" rel="noopener"><b>GitHub</b><span>github.com/jolyonbrown</span></a>
+        <a href="https://x.com/eddie_catflap" target="_blank" rel="noopener"><b>X</b><span>@eddie_catflap</span></a>
+        <a href="https://ko-fi.com/eddie_catflap" target="_blank" rel="noopener" class="kofi"><b>Buy me a coffee</b><span>ko-fi.com/eddie_catflap</span></a>
+      </nav>
+    </div>
   </section>
 
   <section id="play" class="screen hidden">

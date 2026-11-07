@@ -1,6 +1,6 @@
 // Offline support: serve from cache, refresh the cache in the background.
 // Bump VERSION when files change so old caches are cleared.
-const VERSION = 'v3';
+const VERSION = 'v4';
 const CACHE = `blast-a-pic-${VERSION}`;
 const FILES = [
   './',

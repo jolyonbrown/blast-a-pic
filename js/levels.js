@@ -145,6 +145,152 @@ function hedgehogRows() {
   return g.rows();
 }
 
+// Fills every empty cell with a background colour, so every column is deep.
+function withBackground(rows, bg) {
+  return rows.map((r) => r.replace(/\./g, bg));
+}
+
+function candyCaneRows() {
+  const W = 17, H = 27, g = canvas(W, H);
+  for (let y = 0; y < H; y++)
+    for (let x = 0; x < W; x++) {
+      const d = Math.hypot(x - 8, y - 7.5);
+      const hook = d < 7 && d > 2.6 && (y <= 7.5 || (x > 8 && y <= 10));
+      const shaft = x >= 1 && x <= 5 && y > 7 && y < H;
+      if (hook || shaft) g.set(x, y, (x + y) % 4 < 2 ? 'r' : 'w');
+    }
+  return g.rows();
+}
+
+function puddingRows() {
+  const W = 24, H = 21, g = canvas(W, H);
+  const raisins = [[6, 12], [10, 14], [15, 12], [18, 15], [8, 16], [13, 17], [16, 9], [5, 15], [11, 10], [19, 11]];
+  for (let y = 0; y < H; y++)
+    for (let x = 0; x < W; x++) {
+      if (y >= 5 && y <= 18 && inEllipse(x, y, 11.5, 12, 11, 8.5)) g.set(x, y, 'n');
+      // custard dripping over the top
+      const drip = 7 + Math.round(Math.sin(x * 1.3) * 1.2 + (x % 5 === 0 ? 1.5 : 0));
+      if (y >= 5 && y <= drip && inEllipse(x, y, 11.5, 12, 11, 8.5)) g.set(x, y, 'w');
+      if (y >= 19 && x >= 1 && x <= 22) g.set(x, y, 's');
+    }
+  for (const [x, y] of raisins) g.set(x, y, 'v');
+  // holly on top
+  for (const [x, y] of [[8, 3], [9, 3], [10, 2], [7, 4], [8, 4], [14, 3], [15, 3], [13, 2], [16, 4], [15, 4]]) g.set(x, y, 'G');
+  for (const [x, y] of [[11, 3], [12, 3], [11, 4], [12, 4], [11, 2]]) g.set(x, y, 'r');
+  return g.rows();
+}
+
+function baubleRows() {
+  const W = 23, H = 26, g = canvas(W, H);
+  const cx = 11, cy = 14.5, R = 10.6;
+  for (let y = 0; y < H; y++)
+    for (let x = 0; x < W; x++) {
+      if (Math.hypot(x - cx, y - cy) < R) {
+        let ch = 'r';
+        const zig = 11 + Math.abs(((x + 100) % 4) - 2);
+        if (y >= 8 && y <= 9) ch = 'y';
+        if (y >= 10 && y < zig) ch = 'G';
+        if (y >= zig && y <= zig + 2) ch = 'y';
+        if (y > zig + 2 && y <= zig + 4) ch = 'G';
+        if (y >= 20 && y <= 21) ch = 'y';
+        if (ch === 'r' && (x * 3 + y * 5) % 11 === 0) ch = 'w';
+        g.set(x, y, ch);
+      }
+      if (y >= 2 && y <= 3 && x >= 8 && x <= 14) g.set(x, y, 's');
+      if (y === 1 && (x === 10 || x === 12)) g.set(x, y, 's');
+      if (y === 0 && x === 11) g.set(x, y, 's');
+    }
+  return g.rows();
+}
+
+function snowflakeRows() {
+  const N = 27, c = 13, g = canvas(N, N);
+  const segs = [];
+  for (let k = 0; k < 6; k++) {
+    const a = (k * Math.PI) / 3 - Math.PI / 2;
+    const ux = Math.cos(a), uy = Math.sin(a);
+    segs.push([c, c, c + ux * 11.5, c + uy * 11.5]);
+    for (const [t, len] of [[5, 3.2], [8.5, 2.4]])
+      for (const s of [-1, 1]) {
+        const b = a + (s * Math.PI) / 3;
+        segs.push([c + ux * t, c + uy * t, c + ux * t + Math.cos(b) * len, c + uy * t + Math.sin(b) * len]);
+      }
+  }
+  const near = (x, y, [x1, y1, x2, y2]) => {
+    const dx = x2 - x1, dy = y2 - y1;
+    const t = Math.max(0, Math.min(1, ((x - x1) * dx + (y - y1) * dy) / (dx * dx + dy * dy)));
+    return Math.hypot(x - (x1 + dx * t), y - (y1 + dy * t)) < 0.75;
+  };
+  for (let y = 0; y < N; y++)
+    for (let x = 0; x < N; x++) {
+      let ch = 'b';
+      if (segs.some((s) => near(x, y, s))) ch = 'w';
+      if (Math.hypot(x - c, y - c) < 2.2) ch = 'c';
+      if (ch === 'b' && (x * 7 + y * 13) % 29 === 0) ch = 'y';
+      g.set(x, y, ch);
+    }
+  return g.rows();
+}
+
+function presentRows() {
+  const W = 22, H = 22, g = canvas(W, H);
+  for (let y = 0; y < H; y++)
+    for (let x = 0; x < W; x++) {
+      if (y >= 7) {
+        let ch = (x + y) % 4 < 2 ? 'r' : 'p';
+        if (y === 7 || y === 8) ch = 'r'; // lid
+        if (x >= 10 && x <= 11) ch = 'y';
+        if (y >= 13 && y <= 14) ch = 'y';
+        if (x >= 1 && x <= 20 && (y > 8 || x >= 0)) g.set(x, y, y >= 9 && (x < 2 || x > 19) ? '.' : ch);
+      }
+      // bow: two loops and a knot
+      if (inEllipse(x, y, 7, 4, 3.6, 2.4) && !inEllipse(x, y, 7.4, 4, 1.4, 0.9)) g.set(x, y, 'y');
+      if (inEllipse(x, y, 14, 4, 3.6, 2.4) && !inEllipse(x, y, 13.6, 4, 1.4, 0.9)) g.set(x, y, 'y');
+      if (x >= 10 && x <= 11 && y >= 3 && y <= 6) g.set(x, y, 'o');
+    }
+  return g.rows();
+}
+
+function treeRows() {
+  const W = 25, H = 31, g = canvas(W, H);
+  const c = 12;
+  const baubles = { '10,9': 'r', '14,11': 'y', '9,14': 'p', '15,16': 'r', '12,13': 'c', '7,19': 'y', '17,20': 'p', '11,18': 'r', '13,22': 'y', '6,24': 'c', '18,24': 'r', '10,23': 'p' };
+  for (let y = 0; y < H; y++)
+    for (let x = 0; x < W; x++) {
+      let ch = (x * 5 + y * 11) % 23 === 0 ? 'w' : 'b'; // night sky with snowflakes
+      // three tiers
+      for (const [top, bottom, half] of [[3, 11, 6], [8, 18, 8.5], [14, 26, 11]]) {
+        if (y >= top && y <= bottom && Math.abs(x - c) <= ((y - top + 1) / (bottom - top + 1)) * half) ch = (y + Math.abs(x - c)) % 5 === 0 ? 'g' : 'G';
+      }
+      if (y >= 27 && y <= 28 && x >= 11 && x <= 13) ch = 'n';
+      if (y >= 29) ch = 'w';
+      if (baubles[`${x},${y}`]) ch = baubles[`${x},${y}`];
+      g.set(x, y, ch);
+    }
+  for (const [x, y] of [[12, 0], [11, 1], [12, 1], [13, 1], [10, 2], [12, 2], [14, 2]]) g.set(x, y, 'y');
+  return g.rows();
+}
+
+function cottageRows() {
+  const W = 30, H = 27, g = canvas(W, H);
+  for (let y = 0; y < H; y++)
+    for (let x = 0; x < W; x++) {
+      let ch = y < 18 ? ((x * 7 + y * 3) % 31 === 0 ? 'w' : 'v') : 'w'; // dusk sky, snowy ground
+      if (Math.hypot(x - 24, y - 4) < 2.6) ch = 'y'; // moon
+      // pine trees either side
+      for (const tx of [3, 27]) if (y >= 7 && y <= 19 && Math.abs(x - tx) <= (y - 7) * 0.32 + 0.3) ch = (y % 3 === 0 && Math.abs(x - tx) > (y - 7) * 0.2) ? 'w' : 'G';
+      // house
+      if (y >= 12 && y <= 21 && x >= 8 && x <= 21) ch = (y % 2 === 0) ? 'n' : 't';
+      if (y >= 5 && y <= 11 && Math.abs(x - 14.5) <= (y - 4) * 1.15) ch = y <= 6 || Math.abs(x - 14.5) > (y - 4) * 1.15 - 1.2 ? 'w' : 'r';
+      if (x >= 18 && x <= 19 && y >= 3 && y <= 7) ch = 's'; // chimney
+      if ((x >= 10 && x <= 12 || x >= 17 && x <= 19) && y >= 14 && y <= 16) ch = (x === 11 || x === 18 || y === 15) ? 'o' : 'y';
+      if (x >= 14 && x <= 15 && y >= 17 && y <= 21) ch = 'G';
+      if (y >= 22) ch = (x + y) % 9 === 0 ? 'c' : 'w';
+      g.set(x, y, ch);
+    }
+  return g.rows();
+}
+
 export const RAW_LEVELS = [
   {
     section: 'Warm-up',
@@ -560,6 +706,153 @@ export const RAW_LEVELS = [
   {
     id: 24, name: 'Hazel the Hedgehog', outline: 'k', columns: 5, chunks: [20, 30], noise: 5, mystery: 0.5, locks: 0.25, ice: 0.2, dockOptions: [4, 3],
     rows: hedgehogRows,
+  },
+
+  // ------------------------------------------------------------ Expert
+  // Festive and fiendish: three slots, lots of locks, ice and "?" turrets,
+  // and from Snowflake on, full backgrounds so every column is deep.
+  {
+    section: 'Expert',
+    id: 25, name: 'Candy Cane', outline: 'k', columns: 4, chunks: [20, 30], noise: 5, mystery: 0.5, locks: 0.25, ice: 0.2, dockOptions: [4, 3],
+    rows: candyCaneRows,
+  },
+  {
+    id: 26, name: 'Gingerbread Gent', outline: 'k', mirror: 'even', columns: 4, chunks: [20, 30], noise: 5, mystery: 0.5, locks: 0.25, ice: 0.22, dockOptions: [4, 3],
+    rows: [
+      '......nnn',
+      '.....nnnn',
+      '.....nknn',
+      '.....pnnn',
+      '.....nwww',
+      '......nnn',
+      '.nnnnnnnn',
+      'nwnnnnnnn',
+      'nwnnnnnnr',
+      '.nnnnnnnn',
+      '.....nnnn',
+      '.....nnnr',
+      '....nnnnn',
+      '....nnnnn',
+      '...nnnn..',
+      '..nnnn...',
+      '..nwnn...',
+      '..nnn....',
+    ],
+  },
+  {
+    id: 27, name: 'Figgy Pudding', outline: 'k', columns: 5, chunks: [20, 30], noise: 5, mystery: 0.5, locks: 0.28, ice: 0.22, dockOptions: [4, 3],
+    rows: puddingRows,
+  },
+  {
+    id: 28, name: 'Bauble', outline: 'k', columns: 5, chunks: [20, 30], noise: 5.5, mystery: 0.55, locks: 0.28, ice: 0.25, dockOptions: [4, 3],
+    rows: baubleRows,
+  },
+  {
+    id: 29, name: 'Snowflake', columns: 5, chunks: [20, 30, 40], noise: 5.5, mystery: 0.55, locks: 0.3, ice: 0.2, dockOptions: [4, 3],
+    rows: snowflakeRows,
+  },
+  {
+    id: 30, name: 'Rockin’ Robin', outline: 'k', columns: 5, chunks: [20, 30, 40], noise: 6, mystery: 0.55, locks: 0.3, ice: 0.25, dockOptions: [4, 3],
+    rows: () => withBackground([
+      '..........nnnnn.........',
+      '........nnnnnnnnn.......',
+      '.......nnnnnnnnknn......',
+      '.......nnnnnnnnnnnyy....',
+      '......nnnnnnoooonnyyy...',
+      '......nnnnnooooooon.....',
+      '.....nnnnnooooooooon....',
+      '....nnnnnooooooooooon...',
+      '...nnnnnnoooooooooooon..',
+      '..nnnnnnnoooooooooooon..',
+      '.nnnnnnnnoooooooooooon..',
+      'nnnnnnnnnwooooooooooon..',
+      'nnnnnnnnnwwwoooooooon...',
+      '.nnnnnnnnwwwwwwwwwwwn...',
+      '..nnnnnnnwwwwwwwwwwn....',
+      '....nnnnnnwwwwwwwnn.....',
+      '.......nnnnnnnnnn.......',
+      '..........s...s.........',
+      'nnnnnnnnnnnnnnnnnnnnnnnn',
+      '..GGr..........rGG......',
+    ], 'c'),
+  },
+  {
+    id: 31, name: 'Rudolph', outline: 'k', mirror: 'even', columns: 5, chunks: [20, 30, 40], noise: 6, mystery: 0.6, locks: 0.3, ice: 0.25, dockOptions: [4, 3],
+    rows: [
+      '.t..t.....',
+      '.t.tt.....',
+      '.ttt..t...',
+      '..tt.tt...',
+      '...ttt....',
+      '....tt....',
+      'nnn..nnnnn',
+      '.nnnnnnnnn',
+      '...nnnnnnn',
+      '...nnknnnn',
+      '...nnnnnnn',
+      '....nnnnnn',
+      '....nnnttt',
+      '....nnttrr',
+      '....nnttrr',
+      '.....ntttt',
+      '......tttt',
+    ],
+  },
+  {
+    id: 32, name: 'Under the Tree', outline: 'k', columns: 5, chunks: [20, 30, 40], noise: 6.5, mystery: 0.6, locks: 0.32, ice: 0.28, dockOptions: [4, 3],
+    rows: presentRows,
+  },
+  {
+    id: 33, name: 'Oh Christmas Tree', columns: 5, chunks: [20, 30, 40], noise: 6.5, mystery: 0.6, locks: 0.32, ice: 0.25, dockOptions: [4, 3],
+    rows: treeRows,
+  },
+  {
+    id: 34, name: 'Snowed In', columns: 5, chunks: [20, 30, 40], noise: 7, mystery: 0.6, locks: 0.35, ice: 0.25, dockOptions: [4, 3],
+    rows: cottageRows,
+  },
+
+  // ------------------------------------------------------------ Secret
+  // Only reachable from the About page. The hardest one of all.
+  {
+    secret: true,
+    id: 35, name: 'The Maker', mirror: 'even', columns: 5, chunks: [30, 40], noise: 7, mystery: 0.6, locks: 0.35, ice: 0.35, iceColors: 'ck', dockOptions: [3],
+    rows: [
+      'cccccccccccccc',
+      'cccccccccccccc',
+      'ccccccccMMMMMM',
+      'cccccMMMMMMMMM',
+      'ccccMMMMMPPPPP',
+      'cccMMMMPPPPPPP',
+      'cccMMMPPPPPPPP',
+      'cccMMPPPPPPPPP',
+      'cccMMPPPPPPPPP',
+      'cccMMPPPPPPPPP',
+      'cccMPPPPPPPPPP',
+      'cccMPMMMMMPPPP',
+      'ccPPPPPPPPPPPP',
+      'ccPPwskswPPPPP',
+      'ccPPPPPPPPPPPP',
+      'ccRPPPPPPPPPPP',
+      'cccPPPPPPPPPRP',
+      'cccPPPPPPPPPRP',
+      'cccsPPPPPPPPRR',
+      'cccsMPPPPPPPPP',
+      'cccsMMPPPPMMMM',
+      'cccsMMPPPPRRRR',
+      'cccsMMMPPMMMMM',
+      'ccccsMMMMMsMMM',
+      'ccccsMMMMsMMMM',
+      'cccccsMMMMMMMM',
+      'cccccccsMMMMMM',
+      'ccccccccPPPPPP',
+      'ccccccccPPPPPP',
+      'ccccckkkkPPPPP',
+      'cckkkkkkkkPPPP',
+      'ckkkkkkkkkkkPP',
+      'kkkkkkkkkkkkkk',
+      'kkkkkkkkkkkkkk',
+      'kkkkkkkkkkkkkk',
+    ],
   },
 ];
 
