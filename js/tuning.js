@@ -34,5 +34,5 @@ export const TUNING = {
   32: {"seed":32045,"docks":3,"noise":9.1,"attempt":0},
   33: {"seed":33034,"docks":4,"noise":11.05,"attempt":23},
   34: {"seed":34068,"docks":4,"noise":7.7,"attempt":41},
-  35: {"seed":35001,"docks":3,"noise":5.6,"attempt":17},
+  35: {"seed":35022,"docks":3,"noise":11.9,"attempt":20},
 };
