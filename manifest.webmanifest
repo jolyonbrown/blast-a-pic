@@ -1,0 +1,16 @@
+{
+  "name": "Blast-a-Pic",
+  "short_name": "Blast-a-Pic",
+  "description": "A calm bead-blasting puzzle. No ads, no lives, no timers.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f7e6cf",
+  "theme_color": "#f7e6cf",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

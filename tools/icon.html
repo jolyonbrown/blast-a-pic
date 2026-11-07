@@ -1,0 +1,35 @@
+<!doctype html>
+<!-- Renders the app icon. Used by tools/make-icons.cjs (open with ?size=512). -->
+<html><body style="margin:0">
+<canvas id="c"></canvas>
+<script type="module">
+  import { beadSprite, drawTurret } from '../js/render.js';
+  const size = +(new URLSearchParams(location.search).get('size') || 512);
+  const c = document.getElementById('c');
+  c.width = c.height = size;
+  const g = c.getContext('2d');
+  const s = size / 100;
+  const bg = g.createLinearGradient(0, 0, 0, size);
+  bg.addColorStop(0, '#fbeedd');
+  bg.addColorStop(1, '#f0d4b2');
+  g.fillStyle = bg;
+  g.fillRect(0, 0, size, size);
+  // a little bead heart
+  const heart = ['.rr.rr.', 'rrrrrrr', 'rrrrrrr', '.rrrrr.', '..rrr..', '...r...'];
+  const cell = 8.2 * s;
+  const ox = 50 * s - (7 * cell) / 2, oy = 9 * s;
+  heart.forEach((row, y) => [...row].forEach((ch, x) => {
+    if (ch === '.') return;
+    if (y === 5) return; // the bottom bead has already been popped
+    const hex = (x === 1 && y === 1) || (x === 2 && y === 1) ? '#ff9fcb' : '#e8434d';
+    g.drawImage(beadSprite(hex, cell), ox + x * cell, oy + y * cell, cell, cell);
+  }));
+  // a shot on its way
+  g.fillStyle = 'rgba(255,255,255,0.9)';
+  g.beginPath(); g.arc(50 * s, 59 * s, 3.6 * s, 0, Math.PI * 2); g.fill();
+  g.fillStyle = '#e8434d';
+  g.beginPath(); g.arc(50 * s, 59 * s, 2.6 * s, 0, Math.PI * 2); g.fill();
+  drawTurret(g, 50 * s, 80 * s, 34 * s, '#9a6be0', { aim: -Math.PI / 2 });
+  document.title = 'ready';
+</script>
+</body></html>
