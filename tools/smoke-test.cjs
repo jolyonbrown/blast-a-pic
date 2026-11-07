@@ -21,10 +21,10 @@ const out = process.argv[2];
     page.on('pageerror', (e) => errors.push(`${name}: ${e.message}`));
     page.on('console', (m) => m.type() === 'error' && errors.push(`${name}: ${m.text()}`));
     await page.goto(BASE);
-    await page.evaluate(() => localStorage.setItem('blast-a-pic:v1', JSON.stringify({ seenHelp: true, speed: 3, done: [] })));
+    await page.evaluate(() => localStorage.setItem('blast-a-pic:v1', JSON.stringify({ seenHelp: true, speed: 3, done: [], tips: Array.from({ length: 100 }, (_, i) => i + 1) })));
     await page.reload();
 
-    const levels = name === 'ipad-portrait' ? [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12] : [1];
+    const levels = name === 'ipad-portrait' ? await page.evaluate(() => window.__blast.levelIds) : [1];
     for (const id of levels) {
       await page.evaluate((id) => window.__blast.startLevel(id), id);
       await page.waitForTimeout(400);
@@ -41,7 +41,7 @@ const out = process.argv[2];
         const won = await page.evaluate(() => window.__blast.game.phase === 'won');
         console.log(`${name} level ${id}: ${won ? 'WON' : 'NOT WON'} (${title})`);
         if (!won) failed = true;
-        if (out && (id === 1 || id === 12)) await page.screenshot({ path: `${out}/${name}-win-${id}.png` });
+        if (out && (id === 1 || id === 24)) await page.screenshot({ path: `${out}/${name}-win-${id}.png` });
       } catch {
         console.log(`${name} level ${id}: no dialog appeared`);
         failed = true;
@@ -49,7 +49,7 @@ const out = process.argv[2];
     }
 
     // Get deliberately stuck on the last level, then undo out of it.
-    await page.evaluate(() => window.__blast.startLevel(12));
+    await page.evaluate(() => window.__blast.startLevel(24));
     await page.waitForTimeout(300);
     let stuck = false;
     for (let i = 0; i < 40 && !stuck; i++) {

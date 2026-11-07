@@ -2,6 +2,10 @@
 //
 // The picture is a grid of beads. Turrets sit below it, so a bead can only be
 // hit when nothing is underneath it: each column is peeled from the bottom up.
+//
+// Extras for trickier levels:
+//  - frozen beads need two hits (the first just cracks the ice)
+//  - locked turrets can't be moved until enough other turrets have been used
 // Turrets sit in a small number of docks; each turret has a colour and an ammo
 // count and fires at the nearest exposed bead of its colour. When its ammo runs
 // out it leaves and frees the dock. Fill every dock with turrets that have
@@ -51,6 +55,10 @@ function shuffle(arr, rand) {
 // Supports: mirror ('even' | 'odd'), patch [[x,y,ch]], outline (palette key).
 export function parseArt(def) {
   let rows = typeof def.rows === 'function' ? def.rows() : def.rows.slice();
+  if (def.mirror) {
+    const bad = rows.findIndex((r) => r.length !== rows[0].length);
+    if (bad >= 0) throw new Error(`${def.name}: mirrored row ${bad} is ${rows[bad].length} wide, expected ${rows[0].length}`);
+  }
   if (def.mirror === 'even') rows = rows.map((r) => r + [...r].reverse().join(''));
   if (def.mirror === 'odd') rows = rows.map((r) => r + [...r.slice(0, -1)].reverse().join(''));
   let W = Math.max(...rows.map((r) => r.length));
@@ -108,8 +116,10 @@ export function newState(level) {
     W, H,
     D: level.docks,
     cells: Int8Array.from(level.cells),
+    hp: Uint8Array.from(level.hp), // hits each bead still needs (2 = frozen)
     bottom: new Int16Array(W).fill(-1), // row of the lowest bead in each column
     beadsLeft: 0,
+    placed: 0, // turrets sent to a slot so far (opens padlocks)
     colPos: new Array(level.columns.length).fill(0),
     docks: new Array(level.docks).fill(null),
     level,
@@ -123,8 +133,10 @@ export function cloneState(s) {
   return {
     W: s.W, H: s.H, D: s.D,
     cells: Int8Array.from(s.cells),
+    hp: Uint8Array.from(s.hp),
     bottom: Int16Array.from(s.bottom),
     beadsLeft: s.beadsLeft,
+    placed: s.placed,
     colPos: s.colPos.slice(),
     docks: s.docks.map((d) => (d ? { ...d } : null)),
     level: s.level,
@@ -185,11 +197,22 @@ export function frontTile(s, col) {
   return s.colPos[col] < column.length ? s.level.tiles[column[s.colPos[col]]] : null;
 }
 
+// How many more turrets must be used before this one's padlock opens.
+export function lockLeft(s, tile) {
+  return Math.max(0, (tile.lock || 0) - s.placed);
+}
+
+export function canPlace(s, col) {
+  const tile = frontTile(s, col);
+  return !!tile && lockLeft(s, tile) === 0;
+}
+
 // Move the front turret of a column into a dock. Returns the tile, or null.
 export function place(s, col, dock = firstFreeDock(s), arriving = false) {
   const tile = frontTile(s, col);
-  if (!tile || dock < 0 || s.docks[dock]) return null;
+  if (!tile || lockLeft(s, tile) > 0 || dock < 0 || s.docks[dock]) return null;
   s.colPos[col]++;
+  s.placed++;
   s.docks[dock] = { tile: tile.id, color: tile.color, count: tile.count, arriving };
   return tile;
 }
@@ -202,10 +225,12 @@ export function tick(s) {
     if (!dock || dock.arriving) continue;
     const t = findTarget(s, d, dock.color);
     if (t < 0) continue;
-    removeBead(s, t);
+    let popped = true;
+    if (s.hp[t] > 1) { s.hp[t]--; popped = false; } // crack the ice
+    else removeBead(s, t);
     dock.count--;
     const done = dock.count === 0;
-    shots.push({ dock: d, cell: t, color: dock.color, tile: dock.tile, done });
+    shots.push({ dock: d, cell: t, color: dock.color, tile: dock.tile, done, popped });
     if (done) s.docks[d] = null;
   }
   return shots;
@@ -221,8 +246,16 @@ export function canAnyFire(s) {
   return s.docks.some((d, i) => d && !d.arriving && findTarget(s, i, d.color) >= 0);
 }
 
+// Nothing can fire, and either every slot is full or every turret you could
+// send is still padlocked.
 export function isStuck(s) {
-  return s.beadsLeft > 0 && s.docks.every((d) => d && !d.arriving) && !canAnyFire(s);
+  if (s.beadsLeft === 0 || s.docks.some((d) => d && d.arriving) || canAnyFire(s)) return false;
+  if (firstFreeDock(s) < 0) return true;
+  return !s.level.columns.some((_, c) => canPlace(s, c));
+}
+
+export function stuckReason(s) {
+  return firstFreeDock(s) < 0 ? 'full' : 'locked';
 }
 
 export function trayEmpty(s) {
@@ -231,9 +264,9 @@ export function trayEmpty(s) {
 
 // ---------------------------------------------------------------- solver
 
-function hashCells(cells) {
+function hashBoard(s) {
   let h = 2166136261;
-  for (let i = 0; i < cells.length; i++) h = Math.imul(h ^ (cells[i] + 2), 16777619);
+  for (let i = 0; i < s.cells.length; i++) h = Math.imul(h ^ (s.cells[i] + 2 + s.hp[i] * 64), 16777619);
   return h >>> 0;
 }
 
@@ -248,7 +281,7 @@ export function solve(start, budget = 30000) {
   function dfs(s) {
     if (s.beadsLeft === 0) return true;
     if (++nodes > budget) { aborted = true; return false; }
-    const key = s.colPos.join(',') + '|' + s.docks.map((d) => (d ? d.color + ':' + d.count : '-')).join(',') + '|' + hashCells(s.cells);
+    const key = s.colPos.join(',') + '|' + s.docks.map((d) => (d ? d.color + ':' + d.count : '-')).join(',') + '|' + hashBoard(s);
     if (seen.has(key)) return false;
     seen.add(key);
     const dock = firstFreeDock(s);
@@ -257,7 +290,7 @@ export function solve(start, budget = 30000) {
     const sigs = new Set();
     for (let c = 0; c < s.level.columns.length; c++) {
       const tile = frontTile(s, c);
-      if (!tile) continue;
+      if (!tile || lockLeft(s, tile) > 0) continue;
       const sig = tile.color + ':' + tile.count;
       if (sigs.has(sig)) continue;
       sigs.add(sig);
@@ -322,8 +355,17 @@ export function buildLevel(def) {
       if (ci < 0) { ci = colors.length; colors.push(ch); }
       cells[y * art.W + x] = ci;
     }
+  // Frozen beads: a fixed sprinkling per picture (doesn't change with the tray layout).
+  const hp = new Uint8Array(art.W * art.H);
+  const iceRand = rng(def.id * 7717 + 3);
+  for (let i = 0; i < cells.length; i++) {
+    if (cells[i] < 0) continue;
+    const ch = colors[cells[i]];
+    const eligible = def.iceColors ? def.iceColors.includes(ch) : ch !== def.outline;
+    hp[i] = def.ice && eligible && iceRand() < def.ice ? 2 : 1;
+  }
   const base = {
-    id: def.id, name: def.name, W: art.W, H: art.H, cells, colors,
+    id: def.id, name: def.name, W: art.W, H: art.H, cells, hp, colors,
     docks: def.docks ?? 5,
   };
   const { layer, depth } = peelLayers(base);
@@ -337,9 +379,10 @@ export function buildLevel(def) {
       const beads = [];
       for (let i = 0; i < cells.length; i++) if (cells[i] === ci) beads.push(i);
       beads.sort((a, b) => layer[a] - layer[b]);
+      const hits = beads.flatMap((i) => Array(hp[i]).fill(i)); // frozen beads take two shots
       let at = 0;
-      for (const size of chunkSizes(beads.length, def.chunks ?? [10, 20], rand)) {
-        tiles.push({ id: 0, color: ci, count: size, hidden: false, key: layer[beads[at]] + rand() * noise * depth * 0.25 });
+      for (const size of chunkSizes(hits.length, def.chunks ?? [10, 20], rand)) {
+        tiles.push({ id: 0, color: ci, count: size, hidden: false, lock: 0, key: layer[hits[at]] + rand() * noise * depth * 0.25 });
         at += size;
       }
     });
@@ -354,6 +397,8 @@ export function buildLevel(def) {
       row.forEach((t, j) => {
         columns[slots[j]].push(t.id);
         if (r > 0 && rand() < (def.mystery ?? 0)) t.hidden = true;
+        // A padlock that opens a few turrets after this one would reach the front.
+        if (def.locks && rand() < def.locks) t.lock = r * ncols + 2 + Math.floor(rand() * 4);
       });
     }
     const level = { ...base, tiles, columns, attempt };

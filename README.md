@@ -8,6 +8,10 @@ they can see **from below**, so every column of the picture peels from the botto
 runs out of ammo it hops away and frees its slot. Fill every slot with turrets that can't see their
 colour and you're stuck. Undo as often as you like.
 
+There are two sets of pictures. **Warm-up** (1–12) teaches the idea. **Tricky** (13–24) has
+fewer slots, more "?" turrets, stripy pictures, **padlocked turrets** that can't move until you've
+used a certain number of other turrets, and **frozen beads** that need two hits.
+
 Every level is checked by a solver before it ships, so it can always be beaten.
 
 ## Playing it on the iPad
@@ -18,8 +22,9 @@ It's a web app: plain HTML, CSS and JavaScript with no build step. Once it's hos
 2. Tap **Share → Add to Home Screen**.
 3. Open it from the new icon. It runs full-screen, works offline and remembers progress.
 
-Updates arrive automatically: after you publish a change, the app picks it up in the background and
-shows it the next time it's opened.
+Updates arrive automatically. Whenever the app comes back to the foreground it checks for a new
+version, downloads it in the background, and switches over the next time she's on the picture
+menu, never in the middle of a level. Progress is kept.
 
 ### Hosting on GitHub Pages (free)
 
@@ -76,6 +81,10 @@ Colours: `k` liquorice, `w` snow, `y` sunshine, `o` tangerine, `r` cherry, `p` c
 `v` violet, `b` ocean, `c` sky, `g` leaf, `G` forest, `n` cocoa, `t` biscuit, `s` pebble.
 `outline: 'k'` draws the dark border for you.
 
+Optional extras: `locks: 0.2` (chance a turret is padlocked), `ice: 0.15` (chance a bead is
+frozen; `iceColors: 'w'` limits it to certain colours), `section: 'Name'` (a heading in the
+menu), and `tip: { title, text }` (shown once, the first time the level is opened).
+
 Then pick a solvable, suitably tricky tray layout and check everything:
 
 ```sh
@@ -83,9 +92,11 @@ node tools/tune-levels.mjs 13      # writes js/tuning.js
 node tools/check-levels.mjs --art  # every level builds, is solvable, prints difficulty
 ```
 
-Difficulty is measured by simulated players: how often someone tapping at random wins, and how
-often a "tap whatever colour is showing most" player wins. The targets per level are in
-`tools/tune-levels.mjs`.
+Difficulty is measured by three simulated players: one tapping at random, one that always taps
+whatever colour is showing most, and a careful one that thinks a move ahead. Tricky levels are
+tuned so random tapping almost never wins and the obvious move often fails, but the careful
+player still wins a fair share of the time, so levels need planning rather than one hidden
+trick. The targets per level are in `tools/tune-levels.mjs`.
 
 ## Tests
 

@@ -63,6 +63,16 @@ export const sfx = {
     tone({ type: 'sine', from: 700, to: 1100, dur: 0.12, vol: 0.18 });
     tone({ type: 'sine', from: 1100, to: 1500, dur: 0.12, vol: 0.14, delay: 0.07 });
   },
+  crack() {
+    if (!ready('crack', 40)) return;
+    tone({ type: 'square', from: 2400, to: 1600, dur: 0.05, vol: 0.05 });
+    tone({ type: 'sine', from: 3200, to: 2600, dur: 0.08, vol: 0.06, delay: 0.02 });
+  },
+  unlock() {
+    if (!ready('unlock', 100)) return;
+    tone({ type: 'triangle', from: 660, dur: 0.09, vol: 0.18 });
+    tone({ type: 'triangle', from: 990, dur: 0.16, vol: 0.18, delay: 0.08 });
+  },
   bonk() {
     if (!ready('bonk', 120)) return;
     tone({ type: 'square', from: 180, to: 140, dur: 0.12, vol: 0.08 });

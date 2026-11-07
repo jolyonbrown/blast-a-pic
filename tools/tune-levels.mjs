@@ -6,7 +6,13 @@ import { buildLevel } from '../js/engine.js';
 import { winRate } from './sim.mjs';
 
 // Target chance of winning by tapping at random, per level (1-based).
-const TARGET = [92, 82, 72, 62, 55, 48, 42, 36, 30, 26, 22, 18];
+const TARGET = [92, 82, 72, 62, 55, 48, 42, 36, 30, 26, 22, 18, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5];
+// From level 13 on, the "tap whatever colour is showing most" player should lose
+// more and more often too, so levels need genuine planning.
+const greedyCeiling = (idx) => (idx < 12 ? 100 : 60 - (idx - 12) * 3);
+// ...but a careful one-move-ahead player must still win reasonably often, so the
+// difficulty comes from planning, not from needing a single counter-intuitive trick.
+const smartFloor = (idx) => (idx < 12 ? 0 : 60 - (idx - 12) * 2.5);
 const CANDIDATES = 150;
 
 const url = new URL('../js/tuning.js', import.meta.url);
@@ -26,15 +32,17 @@ RAW_LEVELS.forEach((def, idx) => {
     try { level = buildLevel({ ...def, docks, noise, seed }); } catch { continue; }
     const random = winRate(level, 'random', 120);
     const greedy = winRate(level, 'greedy', 60);
+    const smart = idx >= 12 ? winRate(level, 'smart', 40) : 100;
     // Later levels should need a bit more than "always pick what's showing most".
-    const score = Math.abs(random - target) + (idx >= 6 && greedy > 90 ? 8 : 0) + (greedy < 30 ? 15 : 0);
-    if (!best || score < best.score) best = { score, random, greedy, cfg: { seed, docks, noise: +noise.toFixed(2), attempt: level.attempt }, tiles: level.tiles.length };
+    const score = Math.abs(random - target) + (idx >= 6 && greedy > 90 ? 8 : 0) + (idx < 12 && greedy < 30 ? 15 : 0)
+      + Math.max(0, greedy - greedyCeiling(idx)) * 0.5 + Math.max(0, smartFloor(idx) - smart) * 0.8;
+    if (!best || score < best.score) best = { score, random, greedy, smart, cfg: { seed, docks, noise: +noise.toFixed(2), attempt: level.attempt }, tiles: level.tiles.length };
   }
   if (!best) { console.log(`#${def.id} no candidate`); return; }
   // Store the exact seed that produced the solvable layout so the game rebuilds it first try.
   const { seed, docks, noise, attempt } = best.cfg;
   tuning[def.id] = { seed: seed, docks, noise, attempt };
-  console.log(`#${String(def.id).padStart(2)} ${def.name.padEnd(18)} target=${target}% random=${best.random}% greedy=${best.greedy}% docks=${docks} turrets=${best.tiles}`);
+  console.log(`#${String(def.id).padStart(2)} ${def.name.padEnd(18)} target=${target}% random=${best.random}% greedy=${best.greedy}% smart=${best.smart}% docks=${docks} turrets=${best.tiles}`);
 });
 
 const body = Object.entries(tuning).map(([id, t]) => `  ${id}: ${JSON.stringify(t)},`).join('\n');

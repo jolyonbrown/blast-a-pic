@@ -69,6 +69,15 @@ button { font-family: inherit; color: inherit; cursor: pointer; }
   margin: 0 auto;
 }
 
+.levels .section {
+  grid-column: 1 / -1;
+  margin: 18px 4px -4px;
+  font-size: 22px;
+  font-weight: 900;
+  color: var(--accent);
+}
+.levels .section:first-child { margin-top: 0; }
+
 .level-card {
   border: 0;
   border-radius: 22px;
