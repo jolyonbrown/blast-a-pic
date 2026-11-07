@@ -87,6 +87,37 @@ export function beadSprite(hex, size) {
   return c;
 }
 
+// A frosty cap over a frozen bead.
+export function iceSprite(size) {
+  const px = Math.max(4, Math.round(size));
+  const key = 'ice' + px;
+  if (beadCache.has(key)) return beadCache.get(key);
+  const c = document.createElement('canvas');
+  c.width = c.height = px;
+  const g = c.getContext('2d');
+  const m = px * 0.04;
+  const grad = g.createLinearGradient(0, 0, px, px);
+  grad.addColorStop(0, 'rgba(225,245,255,0.8)');
+  grad.addColorStop(1, 'rgba(140,200,240,0.6)');
+  g.fillStyle = grad;
+  roundRect(g, m, m, px - 2 * m, px - 2 * m, px * 0.22);
+  g.fill();
+  g.strokeStyle = 'rgba(70,160,225,0.95)'; // blue rim so ice shows up on white beads too
+  g.lineWidth = Math.max(1, px * 0.08);
+  g.stroke();
+  g.strokeStyle = 'rgba(255,255,255,0.9)';
+  g.lineCap = 'round';
+  g.lineWidth = Math.max(1, px * 0.07);
+  g.beginPath();
+  g.moveTo(px * 0.25, px * 0.5);
+  g.lineTo(px * 0.5, px * 0.25);
+  g.moveTo(px * 0.4, px * 0.72);
+  g.lineTo(px * 0.72, px * 0.4);
+  g.stroke();
+  beadCache.set(key, c);
+  return c;
+}
+
 export function clearSpriteCache() {
   beadCache.clear();
 }
@@ -204,6 +235,31 @@ export function drawMystery(ctx, x, y, u) {
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillText('?', x, y - s * 0.06);
+  ctx.restore();
+}
+
+// A little gold padlock showing how many more turrets must be used first.
+export function drawLock(ctx, x, y, s, n) {
+  ctx.save();
+  ctx.lineWidth = s * 0.14;
+  ctx.strokeStyle = '#9aa0ab';
+  ctx.beginPath();
+  ctx.arc(x, y - s * 0.12, s * 0.24, Math.PI, 0);
+  ctx.stroke();
+  ctx.fillStyle = 'rgba(70,45,20,0.25)';
+  roundRect(ctx, x - s * 0.42, y - s * 0.1 + s * 0.05, s * 0.84, s * 0.66, s * 0.16);
+  ctx.fill();
+  ctx.fillStyle = '#f4b53f';
+  roundRect(ctx, x - s * 0.42, y - s * 0.12, s * 0.84, s * 0.66, s * 0.16);
+  ctx.fill();
+  ctx.strokeStyle = '#c98a1c';
+  ctx.lineWidth = Math.max(1, s * 0.05);
+  ctx.stroke();
+  ctx.fillStyle = '#5a3d10';
+  ctx.font = `900 ${Math.round(s * 0.46)}px ui-rounded, "SF Pro Rounded", system-ui, sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(String(n), x, y + s * 0.22);
   ctx.restore();
 }
 

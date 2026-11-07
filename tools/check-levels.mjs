@@ -14,10 +14,12 @@ for (const def of LEVELS) {
     const ms = (performance.now() - t0).toFixed(0);
     const beads = level.cells.filter((c) => c >= 0).length;
     const hidden = level.tiles.filter((t) => t.hidden).length;
+    const locks = level.tiles.filter((t) => t.lock).length;
+    const ice = level.hp.filter((h) => h > 1).length;
     if (def.attempt != null && level.attempt !== def.attempt) { ok = false; console.log(`  ! level ${def.id} layout drifted from tuning`); }
     console.log(
       `#${String(def.id).padStart(2)} ${def.name.padEnd(18)} ${level.W}x${level.H} beads=${beads} colours=${level.colors.length} ` +
-      `slots=${level.docks} turrets=${level.tiles.length} ?=${hidden} build=${ms}ms random=${winRate(level, 'random')}% greedy=${winRate(level, 'greedy')}% solution=${level.solution.length} taps`
+      `slots=${level.docks} turrets=${level.tiles.length} ?=${hidden} locks=${locks} ice=${ice} build=${ms}ms random=${winRate(level, 'random')}% greedy=${winRate(level, 'greedy')}% smart=${winRate(level, 'smart', 60)}% solution=${level.solution.length} taps`
     );
   } catch (e) {
     ok = false;

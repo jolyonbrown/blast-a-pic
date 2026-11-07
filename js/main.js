@@ -1,13 +1,13 @@
 import { LEVELS } from './levels.js';
 import * as engine from './engine.js';
-import { PALETTE, buildLevel, newState, cloneState, place, tick, isStuck, canAnyFire, firstFreeDock, frontTile, findTarget } from './engine.js';
-import { beadSprite, drawTurret, drawMystery, drawPad, roundRect, clearSpriteCache } from './render.js';
+import { PALETTE, buildLevel, newState, cloneState, place, tick, isStuck, stuckReason, canAnyFire, firstFreeDock, frontTile, findTarget, lockLeft } from './engine.js';
+import { beadSprite, iceSprite, drawTurret, drawMystery, drawLock, drawPad, roundRect, clearSpriteCache } from './render.js';
 import { sfx, unlockAudio, setMuted } from './audio.js';
 
 // ================================================================ save data
 
 const SAVE_KEY = 'blast-a-pic:v1';
-const save = { done: [], speed: 1, muted: false, seenHelp: false };
+const save = { done: [], speed: 1, muted: false, seenHelp: false, tips: [] };
 try { Object.assign(save, JSON.parse(localStorage.getItem(SAVE_KEY)) || {}); } catch { /* private mode etc. */ }
 function persist() {
   try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch { /* ignore */ }
@@ -59,6 +59,8 @@ function startLevel(id) {
     undo: [],
     shots: [],
     pending: new Map(), // cell -> colour of beads hit but not yet popped
+    pendingIce: new Set(), // frozen beads whose ice hasn't visibly cracked yet
+    locked: new Set(), // padlocked turrets (to celebrate when they open)
     particles: [],
     vis: new Map(),
     departing: [],
@@ -81,12 +83,22 @@ function startLevel(id) {
     if (p) game.vis.set(t.id, newVis(p.x, p.y + 300 + Math.random() * 120, 0.6));
   }
   game.fronts = level.columns.map((_, c) => frontTile(game.state, c)?.id ?? -1);
+  trackLocks();
   updateHud();
+  const def = LEVELS.find((l) => l.id === id);
   if (!save.seenHelp) {
     save.seenHelp = true;
     persist();
     showHelp();
+  } else if (def.tip && !save.tips.includes(id)) {
+    save.tips.push(id);
+    persist();
+    showDialog({ title: def.tip.title, text: def.tip.text, buttons: [{ label: 'Got it', primary: true, onClick: hideDialog }] });
   }
+}
+
+function trackLocks() {
+  game.locked = new Set(game.level.tiles.filter((t) => lockLeft(game.state, t) > 0).map((t) => t.id));
 }
 
 function newVis(x, y, s = 1) {
@@ -104,6 +116,8 @@ function doUndo() {
   game.arrivals = [];
   game.shots = [];
   game.pending.clear();
+  game.pendingIce.clear();
+  trackLocks();
   game.departing = [];
   game.phase = 'play';
   game.stuckT = 0;
@@ -123,7 +137,7 @@ function tapColumn(c) {
   const tile = frontTile(st, c);
   if (!tile) return false;
   const d = firstFreeDock(st);
-  if (d < 0) {
+  if (d < 0 || lockLeft(st, tile) > 0) {
     sfx.bonk();
     game.shake = { col: c, t: 0.4 };
     return false;
@@ -272,9 +286,15 @@ function update(dt) {
     if (s.delay > 0) { s.delay -= dt; continue; }
     s.t += (dt * Math.max(1, speed * 0.8)) / SHOT_TIME;
     if (s.t >= 1) {
-      g.pending.delete(s.cell);
-      burst(s.x1, s.y1, s.hex, 6);
-      sfx.pop();
+      if (s.popped) {
+        g.pending.delete(s.cell);
+        burst(s.x1, s.y1, s.hex, 6);
+        sfx.pop();
+      } else {
+        g.pendingIce.delete(s.cell);
+        burst(s.x1, s.y1, '#dff4ff', 7);
+        sfx.crack();
+      }
     }
   }
   g.shots = g.shots.filter((s) => s.t < 1);
@@ -292,6 +312,17 @@ function update(dt) {
       }
     }
   });
+
+  // Padlocks opening.
+  for (const id of [...g.locked]) {
+    if (lockLeft(g.state, g.level.tiles[id]) > 0) continue;
+    g.locked.delete(id);
+    const v = g.vis.get(id);
+    if (v && v.a > 0.3) {
+      for (let i = 0; i < 12; i++) spark(v.x, v.y, '#f4b53f');
+      sfx.unlock();
+    }
+  }
 
   // Out of moves?
   if (g.phase === 'play') {
@@ -343,10 +374,11 @@ function fire(shots) {
     const shot = {
       x0: from.x + Math.cos(aim) * reach, y0: from.y + Math.sin(aim) * reach,
       x1: to.x, y1: to.y, t: 0, delay: n * 0.012,
-      cell: s.cell, hex: g.level.hex[s.color],
+      cell: s.cell, hex: g.level.hex[s.color], popped: s.popped,
     };
     g.shots.push(shot);
-    g.pending.set(s.cell, s.color);
+    if (s.popped) g.pending.set(s.cell, s.color);
+    else g.pendingIce.add(s.cell);
     if (v) { v.aim = aim; v.recoil = 1; }
     if (s.done) {
       g.departing.push({ tile: s.tile, t: -0.18, x: v ? v.x : from.x, y: v ? v.y : from.y, aim });
@@ -467,6 +499,12 @@ function draw() {
       if (c < 0) { c = g.pending.get(i); if (c === undefined) continue; }
       ctx.drawImage(sprites[c], board.ox + (i % W) * cell, board.oy + ((i / W) | 0) * cell, cell, cell);
     }
+    const ice = iceSprite(cell * dpr);
+    const hp = g.state.hp;
+    for (let i = 0; i < cells.length; i++) {
+      if (cells[i] >= 0 && (hp[i] > 1 || g.pendingIce.has(i)))
+        ctx.drawImage(ice, board.ox + (i % W) * cell, board.oy + ((i / W) | 0) * cell, cell, cell);
+    }
   }
 
   // pads
@@ -488,9 +526,17 @@ function draw() {
     ctx.save();
     ctx.globalAlpha = v.a * (row === 0 ? 1 : 0.62);
     const u = L.t * v.s;
+    const locked = lockLeft(g.state, t);
+    if (locked) ctx.globalAlpha *= 0.8;
     if (t.hidden && row > 0) drawMystery(ctx, v.x, v.y, u);
     else drawTurret(ctx, v.x, v.y, u, g.level.hex[t.color], { count: t.count, blink: v.blink, aim: v.aim });
     ctx.restore();
+    if (locked && v.a > 0.02) {
+      ctx.save();
+      ctx.globalAlpha = v.a * (row === 0 ? 1 : 0.75);
+      drawLock(ctx, v.x + u * 0.3, v.y - u * 0.26, u * 0.42, locked);
+      ctx.restore();
+    }
   }
   // "+3 more" under columns that go deeper than we can show
   ctx.fillStyle = 'rgba(74,63,85,0.55)';
@@ -665,6 +711,12 @@ function renderMenu() {
   LEVELS.forEach((def, i) => {
     const unlocked = isUnlocked(i);
     const done = isDone(def.id);
+    if (def.section) {
+      const h = document.createElement('h2');
+      h.className = 'section';
+      h.textContent = def.section;
+      box.append(h);
+    }
     const card = document.createElement('button');
     card.type = 'button';
     card.className = 'level-card' + (done ? ' done' : '') + (unlocked ? '' : ' locked') + (i === nextIdx ? ' next' : '');
@@ -741,9 +793,12 @@ function hideDialog() {
 function showStuck() {
   game.phase = 'stuck';
   sfx.stuck();
+  const full = stuckReason(game.state) === 'full';
   showDialog({
-    title: 'Out of room!',
-    text: "Every slot is full and none of those turrets can see their colour. Undo a move or two and try a different order. You've got as many undos as you like.",
+    title: full ? 'Out of room!' : 'All locked up!',
+    text: full
+      ? "Every slot is full and none of those turrets can see their colour. Undo a move or two and try a different order. You've got as many undos as you like."
+      : "The turrets that could help are still padlocked. Undo a move or two and try a different order. You've got as many undos as you like.",
     buttons: [
       { label: 'Start again', onClick: restart },
       { label: 'Undo', primary: true, onClick: doUndo },
@@ -777,6 +832,7 @@ function showHelp() {
       <li>When its ammo runs out it hops away and frees up the slot.</li>
       <li>Fill every slot with turrets that can't see their colour and you're stuck. Undo as often as you like.</li>
       <li><b>?</b> turrets show their colour when they reach the front.</li>
+      <li>Later on: <b>padlocked</b> turrets and <b>frozen</b> beads that need two hits.</li>
     </ol>`,
     buttons: [{ label: "Let's go!", primary: true, onClick: hideDialog }],
   });
@@ -795,8 +851,26 @@ $('sound-menu').addEventListener('click', () => {
 
 showMenu();
 
+// Updates: check whenever the app comes back to the foreground (iPadOS rarely
+// restarts Home Screen apps), and switch to the new version once she's on the
+// picture menu, never in the middle of a level.
+let updateReady = false;
+function applyUpdateIfIdle() {
+  if (updateReady && !$('menu').classList.contains('hidden') && $('dialog').classList.contains('hidden')) location.reload();
+}
 if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
-  navigator.serviceWorker.register('sw.js').catch(() => {});
+  const hadController = !!navigator.serviceWorker.controller;
+  navigator.serviceWorker.register('sw.js').then((reg) => {
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') reg.update().catch(() => {});
+    });
+  }).catch(() => {});
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!hadController) return; // first install, nothing to refresh
+    updateReady = true;
+    applyUpdateIfIdle();
+  });
+  setInterval(applyUpdateIfIdle, 2000);
 }
 
 // Handy for testing from the console.
@@ -804,5 +878,6 @@ window.__blast = {
   get game() { return game; },
   // true once every turret has done all it can and the player needs to act
   get idle() { return !!game && !game.shots.length && !game.arrivals.length && !canAnyFire(game.state); },
+  levelIds: LEVELS.map((l) => l.id),
   startLevel, tapColumn, doUndo, getLevel, engine,
 };

@@ -1,6 +1,6 @@
 // Offline support: serve from cache, refresh the cache in the background.
 // Bump VERSION when files change so old caches are cleared.
-const VERSION = 'v2';
+const VERSION = 'v3';
 const CACHE = `blast-a-pic-${VERSION}`;
 const FILES = [
   './',
@@ -18,7 +18,8 @@ const FILES = [
 ];
 
 self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(FILES)).then(() => self.skipWaiting()));
+  // cache: 'reload' skips the browser's HTTP cache so we store the fresh files.
+  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(FILES.map((f) => new Request(f, { cache: 'reload' })))).then(() => self.skipWaiting()));
 });
 
 self.addEventListener('activate', (e) => {
@@ -34,7 +35,7 @@ self.addEventListener('fetch', (e) => {
   e.respondWith(
     caches.open(CACHE).then(async (cache) => {
       const cached = await cache.match(e.request, { ignoreSearch: true });
-      const network = fetch(e.request)
+      const network = fetch(e.request, { cache: 'no-cache' })
         .then((res) => {
           if (res.ok) cache.put(e.request, res.clone());
           return res;
