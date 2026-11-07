@@ -8,9 +8,17 @@ they can see **from below**, so every column of the picture peels from the botto
 runs out of ammo it hops away and frees its slot. Fill every slot with turrets that can't see their
 colour and you're stuck. Undo as often as you like.
 
-There are two sets of pictures. **Warm-up** (1–12) teaches the idea. **Tricky** (13–24) has
-fewer slots, more "?" turrets, stripy pictures, **padlocked turrets** that can't move until you've
-used a certain number of other turrets, and **frozen beads** that need two hits.
+There are three sets of pictures:
+
+- **Warm-up** (1–12) teaches the idea.
+- **Tricky** (13–24) has fewer slots, more "?" turrets, stripy pictures, **padlocked turrets**
+  that can't move until you've used a certain number of other turrets, and **frozen beads** that
+  need two hits.
+- **Expert** (25–34) is festive and fiendish, and gets harder with every picture. The later ones
+  have full backgrounds, so every column of beads is deep.
+
+There's also a **secret level** on the About page (tap the mystery portrait). It's the hardest in
+the game. It's a bead portrait drawn by hand from a photo; the photo itself isn't in the repo.
 
 Every level is checked by a solver before it ships, so it can always be beaten.
 
@@ -81,7 +89,8 @@ Colours: `k` liquorice, `w` snow, `y` sunshine, `o` tangerine, `r` cherry, `p` c
 `v` violet, `b` ocean, `c` sky, `g` leaf, `G` forest, `n` cocoa, `t` biscuit, `s` pebble.
 `outline: 'k'` draws the dark border for you.
 
-Optional extras: `locks: 0.2` (chance a turret is padlocked), `ice: 0.15` (chance a bead is
+Optional extras: `secret: true` (left out of the picture grid; the About page opens it),
+`locks: 0.2` (chance a turret is padlocked), `ice: 0.15` (chance a bead is
 frozen; `iceColors: 'w'` limits it to certain colours), `section: 'Name'` (a heading in the
 menu), and `tip: { title, text }` (shown once, the first time the level is opened).
 

@@ -1,6 +1,6 @@
 import { LEVELS } from './levels.js';
 import * as engine from './engine.js';
-import { PALETTE, buildLevel, newState, cloneState, place, tick, isStuck, stuckReason, canAnyFire, firstFreeDock, frontTile, findTarget, lockLeft } from './engine.js';
+import { PALETTE, buildLevel, pictureOf, newState, cloneState, place, tick, isStuck, stuckReason, canAnyFire, firstFreeDock, frontTile, findTarget, lockLeft } from './engine.js';
 import { beadSprite, iceSprite, drawTurret, drawMystery, drawLock, drawPad, roundRect, clearSpriteCache } from './render.js';
 import { sfx, unlockAudio, setMuted } from './audio.js';
 
@@ -15,7 +15,8 @@ function persist() {
 setMuted(save.muted);
 
 const isDone = (id) => save.done.includes(id);
-const isUnlocked = (i) => i === 0 || isDone(LEVELS[i - 1].id) || isDone(LEVELS[i].id);
+const isUnlocked = (i) => i === 0 || LEVELS[i].secret || isDone(LEVELS[i - 1].id) || isDone(LEVELS[i].id);
+const SECRET = LEVELS.find((l) => l.secret);
 
 // ================================================================ levels
 
@@ -694,8 +695,15 @@ document.addEventListener('dblclick', (e) => e.preventDefault());
 // ================================================================ screens & dialogs
 
 function showScreen(name) {
-  $('menu').classList.toggle('hidden', name !== 'menu');
-  $('play').classList.toggle('hidden', name !== 'play');
+  for (const id of ['menu', 'play', 'about']) $(id).classList.toggle('hidden', name !== id);
+}
+
+function showAbout() {
+  hideDialog();
+  const done = isDone(SECRET.id);
+  showScreen('about');
+  $('secret-caption').textContent = done ? 'You blasted the maker! Thank you for playing.' : 'Psst… tap me, if you dare.';
+  requestAnimationFrame(() => drawThumb($('secret-art'), SECRET.id, done ? 'colour' : 'silhouette'));
 }
 
 function showMenu() {
@@ -709,6 +717,7 @@ function renderMenu() {
   box.innerHTML = '';
   const nextIdx = LEVELS.findIndex((l, i) => isUnlocked(i) && !isDone(l.id));
   LEVELS.forEach((def, i) => {
+    if (def.secret) return;
     const unlocked = isUnlocked(i);
     const done = isDone(def.id);
     if (def.section) {
@@ -740,8 +749,18 @@ function renderMenu() {
   $('sound-menu').textContent = `Sound: ${save.muted ? 'off' : 'on'}`;
 }
 
+const pictures = new Map();
+function getPicture(id) {
+  if (!pictures.has(id)) {
+    const pic = pictureOf(LEVELS.find((l) => l.id === id));
+    pic.hex = pic.colors.map((k) => PALETTE[k].hex);
+    pictures.set(id, pic);
+  }
+  return pictures.get(id);
+}
+
 function drawThumb(cv, id, mode) {
-  const level = getLevel(id);
+  const level = getPicture(id);
   const size = cv.clientWidth || 140;
   const r = Math.min(window.devicePixelRatio || 1, 2);
   cv.width = cv.height = Math.round(size * r);
@@ -811,10 +830,13 @@ const CHEERS = ['Lovely!', 'Beautiful!', 'Gorgeous!', 'Nailed it!', 'Brilliant!'
 function showWin() {
   confetti();
   const idx = LEVELS.findIndex((l) => l.id === game.level.id);
-  const next = LEVELS[idx + 1];
+  const next = LEVELS.slice(idx + 1).find((l) => !l.secret);
+  const secret = LEVELS[idx].secret;
   showDialog({
-    title: CHEERS[Math.floor(Math.random() * CHEERS.length)],
-    text: next ? `“${game.level.name}” is finished and added to your collection.` : `That's every picture done. You're a bead-blasting legend!`,
+    title: secret ? 'You blasted the maker!' : CHEERS[Math.floor(Math.random() * CHEERS.length)],
+    text: secret
+      ? 'That was the hardest level in the game. Seriously impressive.'
+      : next ? `“${game.level.name}” is finished and added to your collection.` : `That's every picture done. You're a bead-blasting legend! (Is there anything on the About page…?)`,
     art: game.level.id,
     buttons: [
       { label: 'Pictures', onClick: showMenu },
@@ -839,6 +861,9 @@ function showHelp() {
 }
 
 $('howto').addEventListener('click', () => { unlockAudio(); showHelp(); });
+$('about-btn').addEventListener('click', () => { unlockAudio(); showAbout(); });
+$('about-back').addEventListener('click', () => { unlockAudio(); showMenu(); });
+$('secret').addEventListener('click', () => { unlockAudio(); sfx.sparkle(); startLevel(SECRET.id); });
 $('sound-menu').addEventListener('click', () => {
   unlockAudio();
   save.muted = !save.muted;
@@ -856,7 +881,7 @@ showMenu();
 // picture menu, never in the middle of a level.
 let updateReady = false;
 function applyUpdateIfIdle() {
-  if (updateReady && !$('menu').classList.contains('hidden') && $('dialog').classList.contains('hidden')) location.reload();
+  if (updateReady && $('play').classList.contains('hidden') && $('dialog').classList.contains('hidden')) location.reload();
 }
 if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
   const hadController = !!navigator.serviceWorker.controller;
@@ -879,5 +904,6 @@ window.__blast = {
   // true once every turret has done all it can and the player needs to act
   get idle() { return !!game && !game.shots.length && !game.arrivals.length && !canAnyFire(game.state); },
   levelIds: LEVELS.map((l) => l.id),
+  showAbout,
   startLevel, tapColumn, doUndo, getLevel, engine,
 };

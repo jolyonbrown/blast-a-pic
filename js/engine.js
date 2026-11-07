@@ -26,6 +26,9 @@ export const PALETTE = {
   n: { name: 'Cocoa', hex: '#8a5a3c' },
   t: { name: 'Biscuit', hex: '#ecc89f' },
   s: { name: 'Pebble', hex: '#a6aab4' },
+  P: { name: 'Peach', hex: '#f6c2a4' },
+  R: { name: 'Rosewood', hex: '#cf7f72' },
+  M: { name: 'Mushroom', hex: '#857262' },
 };
 
 // ---------------------------------------------------------------- random
@@ -343,7 +346,9 @@ function chunkSizes(n, options, rand) {
 
 // Build a playable level from its definition. Tries seeds until the solver
 // confirms it can be beaten.
-export function buildLevel(def) {
+// Just the picture: a grid of colour indexes plus the colours used. Cheap,
+// so it's what menu thumbnails use.
+export function pictureOf(def) {
   const art = parseArt(def);
   const colors = [];
   const cells = new Int8Array(art.W * art.H).fill(-1);
@@ -355,6 +360,12 @@ export function buildLevel(def) {
       if (ci < 0) { ci = colors.length; colors.push(ch); }
       cells[y * art.W + x] = ci;
     }
+  return { W: art.W, H: art.H, cells, colors };
+}
+
+export function buildLevel(def) {
+  const art = pictureOf(def);
+  const { colors, cells } = art;
   // Frozen beads: a fixed sprinkling per picture (doesn't change with the tray layout).
   const hp = new Uint8Array(art.W * art.H);
   const iceRand = rng(def.id * 7717 + 3);
