@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <title>Blast-a-Pic</title>
+  <meta name="description" content="A calm bead-blasting puzzle. No ads, no lives, no timers.">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Blast-a-Pic">
+  <meta name="theme-color" content="#f7e6cf">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="apple-touch-icon" href="icons/icon-180.png">
+  <link rel="icon" type="image/png" href="icons/icon-192.png">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <section id="menu" class="screen">
+    <header class="menu-head">
+      <h1>Blast<span>·</span>a<span>·</span>Pic</h1>
+      <p>Pop the beads, one colour at a time.</p>
+    </header>
+    <div id="levels" class="levels"></div>
+    <footer class="menu-foot">
+      <button id="sound-menu" class="chip" type="button">Sound: on</button>
+      <button id="howto" class="chip" type="button">How to play</button>
+    </footer>
+  </section>
+
+  <section id="play" class="screen hidden">
+    <canvas id="game"></canvas>
+    <header class="hud">
+      <button id="btn-home" class="round" type="button" aria-label="Back to pictures">
+        <svg viewBox="0 0 24 24"><path d="M3 11.5 12 4l9 7.5M6 10v9h4.5v-5h3v5H18v-9" /></svg>
+      </button>
+      <div id="title" class="title">Level 1</div>
+      <div class="hud-right">
+        <button id="btn-undo" class="round" type="button" aria-label="Undo">
+          <svg viewBox="0 0 24 24"><path d="M9 7 4 12l5 5M4.5 12H15a5 5 0 0 1 0 10h-2" /></svg>
+        </button>
+        <button id="btn-restart" class="round" type="button" aria-label="Start again">
+          <svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.6-5.9M20 4v5h-5" /></svg>
+        </button>
+        <button id="btn-speed" class="pill" type="button" aria-label="Speed">1×</button>
+      </div>
+    </header>
+  </section>
+
+  <div id="dialog" class="dialog hidden" role="dialog" aria-modal="true">
+    <div class="card">
+      <canvas id="dialog-art" width="10" height="10"></canvas>
+      <h2 id="dialog-title"></h2>
+      <p id="dialog-text"></p>
+      <div id="dialog-buttons" class="buttons"></div>
+    </div>
+  </div>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
