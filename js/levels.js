@@ -1024,8 +1024,8 @@ export const RAW_LEVELS = [
       title: 'Stones and hammers',
       text: 'Some beads are hidden under stones. Only a grey hammer turret can smash a stone, and then the bead underneath needs its own colour as usual.',
     },
-    id: 37, name: 'Nelly Looks Up', columns: 5, chunks: [20, 30, 40], noise: 6, mystery: 0.45, locks: 0.2, ice: 0.12,
-    iceColors: 'cD', stones: 0.08, topDocks: 2, dockOptions: [4, 3],
+    id: 37, name: 'Nelly Looks Up', columns: 5, chunks: [30, 40], noise: 5, mystery: 0.4, locks: 0.12, ice: 0.12,
+    iceColors: 'cD', stones: 0.05, hammerChunks: [5, 6, 8], topDocks: 2, dockOptions: [4, 3],
     rows: nellyProfileRows,
   },
   {
