@@ -1,7 +1,7 @@
 import { LEVELS } from './levels.js';
 import * as engine from './engine.js';
-import { PALETTE, buildLevel, pictureOf, newState, cloneState, place, tick, isStuck, stuckReason, canAnyFire, firstFreeDock, frontTile, findTarget, lockLeft } from './engine.js';
-import { beadSprite, iceSprite, drawTurret, drawMystery, drawLock, drawPad, roundRect, clearSpriteCache } from './render.js';
+import { PALETTE, buildLevel, pictureOf, newState, cloneState, place, tick, isStuck, stuckReason, canAnyFire, firstFreeDock, freeSides, sidesFor, dockSide, frontTile, findTarget, lockLeft } from './engine.js';
+import { beadSprite, iceSprite, stoneSprite, fogSprite, drawTurret, drawMystery, drawLock, drawPad, roundRect, clearSpriteCache } from './render.js';
 import { sfx, unlockAudio, setMuted } from './audio.js';
 
 // ================================================================ save data
@@ -15,7 +15,12 @@ function persist() {
 setMuted(save.muted);
 
 const isDone = (id) => save.done.includes(id);
-const isUnlocked = (i) => i === 0 || LEVELS[i].secret || isDone(LEVELS[i - 1].id) || isDone(LEVELS[i].id);
+// A level opens once the previous (non-secret) one is done.
+function isUnlocked(i) {
+  if (i === 0 || LEVELS[i].secret || isDone(LEVELS[i].id)) return true;
+  const prev = LEVELS.slice(0, i).reverse().find((l) => !l.secret);
+  return !prev || isDone(prev.id);
+}
 const SECRET = LEVELS.find((l) => l.secret);
 
 // ================================================================ levels
@@ -26,8 +31,6 @@ function getLevel(id) {
     const def = LEVELS.find((l) => l.id === id);
     const level = buildLevel(def);
     level.hex = level.colors.map((k) => PALETTE[k].hex);
-    level.tileLoc = [];
-    level.columns.forEach((col, c) => col.forEach((id, k) => (level.tileLoc[id] = { c, k })));
     builtLevels.set(id, level);
   }
   return builtLevels.get(id);
@@ -61,6 +64,9 @@ function startLevel(id) {
     shots: [],
     pending: new Map(), // cell -> colour of beads hit but not yet popped
     pendingIce: new Set(), // frozen beads whose ice hasn't visibly cracked yet
+    pendingStone: new Set(), // stones hit by a hammer that hasn't landed yet
+    choosing: -1, // column whose turret is waiting for you to pick a slot
+    revealed: new Set(), // fog beads whose colour has been seen
     locked: new Set(), // padlocked turrets (to celebrate when they open)
     particles: [],
     vis: new Map(),
@@ -118,6 +124,8 @@ function doUndo() {
   game.shots = [];
   game.pending.clear();
   game.pendingIce.clear();
+  game.pendingStone.clear();
+  game.choosing = -1;
   trackLocks();
   game.departing = [];
   game.phase = 'play';
@@ -132,22 +140,41 @@ function restart() {
   if (game) startLevel(game.level.id);
 }
 
-function tapColumn(c) {
+// Send the front turret of column c to a slot. With slots above and below the
+// picture both free, the first tap picks the turret up and a second tap on a
+// glowing slot puts it down (side/dock can be given directly, e.g. by tests).
+function tapColumn(c, side, dock) {
   if (!game || game.phase !== 'play' || !(c >= 0 && c < game.level.columns.length)) return false;
   const st = game.state;
   const tile = frontTile(st, c);
   if (!tile) return false;
-  const d = firstFreeDock(st);
-  if (d < 0 || lockLeft(st, tile) > 0) {
+  const sides = sidesFor(st, c); // empty if locked, or linked and its partner isn't ready
+  if (!sides.length || (side && !sides.includes(side))) {
+    game.choosing = -1;
     sfx.bonk();
     game.shake = { col: c, t: 0.4 };
     return false;
   }
+  if (!side) {
+    if (sides.length > 1) {
+      game.choosing = game.choosing === c ? -1 : c; // tap again to put it back
+      sfx.select();
+      return false;
+    }
+    side = sides[0];
+  }
+  game.choosing = -1;
+  const d = dock ?? firstFreeDock(st, side);
+  if (st.docks[d] || dockSide(st, d) !== side) return false;
   game.undo.push(snapshot());
   place(st, c, d, true);
-  game.arrivals.push({ dock: d, tile: tile.id, t: ARRIVE_TIME });
-  const v = game.vis.get(tile.id);
-  if (v) v.pop = 1;
+  // a linked partner travels too
+  st.docks.forEach((dk, i) => {
+    if (!dk || !dk.arriving || (dk.tile !== tile.id && dk.tile !== tile.link)) return;
+    game.arrivals.push({ dock: i, tile: dk.tile, t: ARRIVE_TIME });
+    const v = game.vis.get(dk.tile);
+    if (v) v.pop = 1;
+  });
   sfx.place();
   updateHud();
   return true;
@@ -169,25 +196,30 @@ function layout() {
   clearSpriteCache();
 
   const lvl = game.level;
-  const D = lvl.docks, C = lvl.columns.length;
+  const D = lvl.docks, T = lvl.topDocks || 0, C = lvl.columns.length;
   const top = hud.getBoundingClientRect().bottom + 12;
   const pad = 16, bottomPad = 22;
   const portrait = h >= w * 1.05;
-  let boardBox, dockBox, trayBox, u;
+  let boardBox, dockBox, topBox = null, trayBox, u;
 
   if (portrait) {
     const avail = h - top - bottomPad;
-    const boardH = avail * 0.5;
-    boardBox = { x: pad, y: top, w: w - 2 * pad, h: boardH };
-    u = Math.min(110, ((w - 2 * pad) / D) * 0.9, avail * 0.13);
-    dockBox = { x: pad, y: top + boardH + 14, w: w - 2 * pad, h: u };
+    u = Math.min(110, ((w - 2 * pad) / Math.max(D, T)) * 0.9, avail * (T ? 0.1 : 0.13));
+    // Slots above the picture take their space from the picture's share.
+    const topH = T ? u + 10 : 0;
+    if (T) topBox = { x: pad, y: top, w: w - 2 * pad, h: u };
+    const boardH = avail * 0.5 - topH;
+    boardBox = { x: pad, y: top + topH, w: w - 2 * pad, h: boardH };
+    dockBox = { x: pad, y: boardBox.y + boardH + 14, w: w - 2 * pad, h: u };
     const ty = dockBox.y + u + 18;
     trayBox = { x: pad, y: ty, w: w - 2 * pad, h: h - ty - bottomPad };
   } else {
-    // Landscape: picture with its slots underneath on the left, tray on the right.
+    // Landscape: picture with its slots underneath (and above) on the left, tray on the right.
     const leftW = w * 0.6;
-    u = Math.min(100, ((leftW - 2 * pad) / D) * 0.86, h * 0.14);
-    boardBox = { x: pad, y: top, w: leftW - 2 * pad, h: h - top - bottomPad - u - 18 };
+    u = Math.min(100, ((leftW - 2 * pad) / Math.max(D, T)) * 0.86, h * (T ? 0.11 : 0.14));
+    const topH = T ? u + 10 : 0;
+    if (T) topBox = { x: pad, y: top, w: leftW - 2 * pad, h: u };
+    boardBox = { x: pad, y: top + topH, w: leftW - 2 * pad, h: h - top - topH - bottomPad - u - 18 };
     dockBox = { x: pad, y: boardBox.y + boardBox.h + 12, w: leftW - 2 * pad, h: u };
     const rx = leftW + pad, rw = w - leftW - 2 * pad;
     trayBox = { x: rx, y: top + 8, w: rw, h: h - top - 8 - bottomPad };
@@ -204,7 +236,11 @@ function layout() {
   L = {
     board: { x: bx, y: by, w: bw, h: bh, cell, ox: bx + fp * cell, oy: by + fp * cell },
     u,
-    docks: Array.from({ length: D }, (_, i) => ({ x: dockBox.x + (dockBox.w * (i + 0.5)) / D, y: dockBox.y + u / 2 })),
+    // bottom slots first, then the ones above the picture (same order as state.docks)
+    docks: [
+      ...Array.from({ length: D }, (_, i) => ({ x: dockBox.x + (dockBox.w * (i + 0.5)) / D, y: dockBox.y + u / 2 })),
+      ...Array.from({ length: T }, (_, i) => ({ x: topBox.x + (topBox.w * (i + 0.5)) / T, y: topBox.y + u / 2 })),
+    ],
     t,
     rowH,
     rows: Math.max(1, Math.floor((trayBox.h - t * 0.2) / rowH)),
@@ -291,6 +327,10 @@ function update(dt) {
         g.pending.delete(s.cell);
         burst(s.x1, s.y1, s.hex, 6);
         sfx.pop();
+      } else if (s.smashed) {
+        g.pendingStone.delete(s.cell);
+        burst(s.x1, s.y1, '#8f9199', 9);
+        sfx.smash();
       } else {
         g.pendingIce.delete(s.cell);
         burst(s.x1, s.y1, '#dff4ff', 7);
@@ -313,6 +353,19 @@ function update(dt) {
       }
     }
   });
+
+  // Fog beads show their colour once they reach either end of their column.
+  if (g.level.fog) {
+    const st = g.state;
+    for (let x = 0; x < st.W; x++) {
+      for (const y of st.T > 0 ? [st.bottom[x], st.top[x]] : [st.bottom[x]]) {
+        const i = y * st.W + x;
+        if (y < 0 || !g.level.fog[i] || g.revealed.has(i)) continue;
+        g.revealed.add(i);
+        if (g.time > 0.3) { const p = beadCenter(i); for (let k = 0; k < 4; k++) spark(p.x, p.y, g.level.hex[st.cells[i]]); }
+      }
+    }
+  }
 
   // Padlocks opening.
   for (const id of [...g.locked]) {
@@ -375,10 +428,11 @@ function fire(shots) {
     const shot = {
       x0: from.x + Math.cos(aim) * reach, y0: from.y + Math.sin(aim) * reach,
       x1: to.x, y1: to.y, t: 0, delay: n * 0.012,
-      cell: s.cell, hex: g.level.hex[s.color], popped: s.popped,
+      cell: s.cell, hex: g.level.hex[s.color], popped: s.popped, smashed: s.smashed,
     };
     g.shots.push(shot);
     if (s.popped) g.pending.set(s.cell, s.color);
+    else if (s.smashed) g.pendingStone.add(s.cell);
     else g.pendingIce.add(s.cell);
     if (v) { v.aim = aim; v.recoil = 1; }
     if (s.done) {
@@ -421,6 +475,10 @@ function updateVisuals(dt) {
       if (!p) { g.vis.delete(t.id); continue; }
       const visible = p.row < L.rows;
       target = { x: p.x, y: p.y, s: p.row === 0 ? 1 : 0.88, a: visible ? 1 : 0 };
+      if (p.row === 0 && g.choosing === g.level.tileLoc[t.id].c) {
+        target.y -= L.t * 0.22 + Math.sin(g.time * 6) * L.t * 0.04;
+        target.s = 1.1;
+      }
       if (g.shake.col === g.level.tileLoc[t.id].c && g.shake.t > 0 && p.row === 0)
         target.x += Math.sin(g.shake.t * 50) * 6 * (g.shake.t / 0.4);
     }
@@ -433,6 +491,7 @@ function updateVisuals(dt) {
     v.recoil = Math.max(0, v.recoil - dt * 6);
     v.pop = Math.max(0, v.pop - dt * 3);
     if (!docked.has(t.id)) v.aim += (-Math.PI / 2 - v.aim) * k * 0.5;
+    else if (dockSide(g.state, docked.get(t.id)) === 'top' && v.recoil === 0) v.aim += (Math.PI / 2 - v.aim) * k * 0.25;
     v.nextBlink -= dt;
     if (v.nextBlink < 0) { v.blink = 1; v.nextBlink = 2 + Math.random() * 5; }
     v.blink = Math.max(0, v.blink - dt * 7);
@@ -495,10 +554,12 @@ function draw() {
     }
   } else {
     const cells = g.state.cells;
+    const fog = fogSprite(cell * dpr);
     for (let i = 0; i < cells.length; i++) {
       let c = cells[i];
       if (c < 0) { c = g.pending.get(i); if (c === undefined) continue; }
-      ctx.drawImage(sprites[c], board.ox + (i % W) * cell, board.oy + ((i / W) | 0) * cell, cell, cell);
+      const sprite = g.level.fog && g.level.fog[i] && !g.revealed.has(i) ? fog : sprites[c];
+      ctx.drawImage(sprite, board.ox + (i % W) * cell, board.oy + ((i / W) | 0) * cell, cell, cell);
     }
     const ice = iceSprite(cell * dpr);
     const hp = g.state.hp;
@@ -506,10 +567,31 @@ function draw() {
       if (cells[i] >= 0 && (hp[i] > 1 || g.pendingIce.has(i)))
         ctx.drawImage(ice, board.ox + (i % W) * cell, board.oy + ((i / W) | 0) * cell, cell, cell);
     }
+    const rock = stoneSprite(cell * dpr);
+    const stone = g.state.stone;
+    for (let i = 0; i < cells.length; i++) {
+      if (cells[i] >= 0 && (stone[i] || g.pendingStone.has(i)))
+        ctx.drawImage(rock, board.ox + (i % W) * cell, board.oy + ((i / W) | 0) * cell, cell, cell);
+    }
   }
 
   // pads
   for (const d of L.docks) drawPad(ctx, d.x, d.y, L.u, 'dock');
+  // While a turret is picked up, the free slots glow to show where it can go.
+  if (g.choosing >= 0) {
+    const glow = 0.55 + Math.sin(g.time * 6) * 0.35;
+    const ok = sidesFor(g.state, g.choosing);
+    g.state.docks.forEach((d, i) => {
+      if (d || !ok.includes(dockSide(g.state, i))) return;
+      const p = L.docks[i], sz = L.u * 0.94;
+      ctx.save();
+      ctx.strokeStyle = `rgba(123,92,196,${glow})`;
+      ctx.lineWidth = 4;
+      roundRect(ctx, p.x - sz / 2, p.y - sz / 2, sz, sz, sz * 0.2);
+      ctx.stroke();
+      ctx.restore();
+    });
+  }
   for (const c of L.cols) drawPad(ctx, c.x, c.y, L.t, 'tray');
 
   // tray turrets, back rows first
@@ -523,6 +605,15 @@ function draw() {
     trayItems.push({ t, v, row: p.row });
   }
   trayItems.sort((a, b) => b.row - a.row);
+  // chains between linked turrets
+  const drawn = new Set();
+  for (const { t, v } of trayItems) {
+    if (t.link == null || drawn.has(t.id)) continue;
+    const w = g.vis.get(t.link);
+    if (!w || docked.has(t.link) || Math.min(v.a, w.a) < 0.05) continue;
+    drawn.add(t.link);
+    drawChain(v.x, v.y - L.t * 0.05, w.x, w.y - L.t * 0.05, Math.min(v.a, w.a));
+  }
   for (const { t, v, row } of trayItems) {
     ctx.save();
     ctx.globalAlpha = v.a * (row === 0 ? 1 : 0.62);
@@ -530,7 +621,7 @@ function draw() {
     const locked = lockLeft(g.state, t);
     if (locked) ctx.globalAlpha *= 0.8;
     if (t.hidden && row > 0) drawMystery(ctx, v.x, v.y, u);
-    else drawTurret(ctx, v.x, v.y, u, g.level.hex[t.color], { count: t.count, blink: v.blink, aim: v.aim });
+    else drawTurret(ctx, v.x, v.y, u, g.level.hex[t.color], { count: t.count, blink: v.blink, aim: v.aim, hammer: t.color === g.level.stoneColor });
     ctx.restore();
     if (locked && v.a > 0.02) {
       ctx.save();
@@ -555,8 +646,9 @@ function draw() {
     const v = g.vis.get(d.tile);
     if (!v) return;
     const u = L.u * v.s * (1 + v.pop * 0.12);
-    drawTurret(ctx, v.x, v.y, u, g.level.hex[d.color], { count: d.count, aim: v.aim, recoil: v.recoil, blink: v.blink });
-    if (!d.arriving && g.phase === 'play' && findTarget(g.state, i, d.color) < 0 && !g.shots.length) drawWaiting(v.x, v.y - u * 0.55, u);
+    drawTurret(ctx, v.x, v.y, u, g.level.hex[d.color], { count: d.count, aim: v.aim, recoil: v.recoil, blink: v.blink, hammer: d.color === g.level.stoneColor });
+    const top = dockSide(g.state, i) === 'top';
+    if (!d.arriving && g.phase === 'play' && findTarget(g.state, i, d.color) < 0 && !g.shots.length) drawWaiting(v.x, v.y + (top ? 0.55 : -0.55) * u, u);
   });
 
   // departing turrets hop off
@@ -567,7 +659,7 @@ function draw() {
     ctx.save();
     ctx.globalAlpha = Math.max(0, 1 - t * 2);
     const tile = g.level.tiles[d.tile];
-    drawTurret(ctx, d.x, d.y - t * 60, L.u * s, g.level.hex[tile.color], { aim: d.aim, count: 0 });
+    drawTurret(ctx, d.x, d.y - t * 60, L.u * s, g.level.hex[tile.color], { aim: d.aim, count: 0, hammer: tile.color === g.level.stoneColor });
     ctx.restore();
   }
 
@@ -606,6 +698,22 @@ function draw() {
     }
   }
   ctx.globalAlpha = 1;
+}
+
+function drawChain(x1, y1, x2, y2, alpha) {
+  const n = Math.max(3, Math.round(Math.hypot(x2 - x1, y2 - y1) / (L.t * 0.12)));
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.lineWidth = Math.max(2, L.t * 0.045);
+  for (let i = 0; i <= n; i++) {
+    const t = i / n;
+    const x = x1 + (x2 - x1) * t, y = y1 + (y2 - y1) * t + Math.sin(t * Math.PI) * L.t * 0.12;
+    ctx.strokeStyle = i % 2 ? '#8d8f97' : '#b9bbc3';
+    ctx.beginPath();
+    ctx.ellipse(x, y, L.t * 0.07, L.t * 0.045, i % 2 ? 0 : Math.PI / 2, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+  ctx.restore();
 }
 
 function drawWaiting(x, y, u) {
@@ -660,6 +768,16 @@ canvas.addEventListener('pointerdown', (e) => {
   unlockAudio();
   if (!game || game.phase !== 'play') return;
   const x = e.clientX, y = e.clientY;
+  if (game.choosing >= 0) {
+    for (let d = 0; d < L.docks.length; d++) {
+      const p = L.docks[d];
+      if (!game.state.docks[d] && sidesFor(game.state, game.choosing).includes(dockSide(game.state, d))
+        && Math.abs(x - p.x) < L.u * 0.5 && Math.abs(y - p.y) < L.u * 0.5) {
+        tapColumn(game.choosing, dockSide(game.state, d), d);
+        return;
+      }
+    }
+  }
   for (let c = 0; c < L.cols.length; c++) {
     const col = L.cols[c];
     const half = L.t * 0.5;
@@ -674,6 +792,7 @@ canvas.addEventListener('pointerdown', (e) => {
       return;
     }
   }
+  game.choosing = -1; // tapped somewhere else: put the turret back
 });
 
 $('btn-home').addEventListener('click', () => { unlockAudio(); showMenu(); });
@@ -901,6 +1020,7 @@ if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.
 // Handy for testing from the console.
 window.__blast = {
   get game() { return game; },
+  get layout() { return L; },
   // true once every turret has done all it can and the player needs to act
   get idle() { return !!game && !game.shots.length && !game.arrivals.length && !canAnyFire(game.state); },
   levelIds: LEVELS.map((l) => l.id),
