@@ -1,5 +1,5 @@
 // Simulated players, used to measure how hard a level is.
-import { newState, cloneState, place, settle, isStuck, rng, frontTile, canPlace, firstFreeDock, freeSides, exposedOnSide } from '../js/engine.js';
+import { newState, cloneState, place, settle, isStuck, rng, frontTile, sidesFor, firstFreeDock, freeSides, exposedOnSide } from '../js/engine.js';
 
 // mode 'random': taps any front turret (and picks a side at random when there are slots above too).
 // mode 'greedy': taps the colour with most beads showing on that side.
@@ -13,7 +13,7 @@ export function winRate(level, mode, trials = 200, seed = 1234) {
     while (s.beadsLeft > 0) {
       const opts = [];
       for (const side of freeSides(s))
-        for (let c = 0; c < level.columns.length; c++) if (canPlace(s, c)) opts.push({ c, side });
+        for (let c = 0; c < level.columns.length; c++) if (sidesFor(s, c).includes(side)) opts.push({ c, side });
       if (!opts.length) break;
       let pick;
       if (mode === 'random') pick = opts[Math.floor(rand() * opts.length)];

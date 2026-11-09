@@ -8,6 +8,8 @@
 //  - locked turrets can't be moved until enough other turrets have been used
 //  - top slots: turrets above the picture fire downwards, peeling columns from the top
 //  - stones cover some beads; only hammer turrets (a grey "colour") can smash them
+//  - linked turrets are chained in pairs: both must be at the front, and they go
+//    out together into two free slots on the same side
 // Turrets sit in a small number of docks; each turret has a colour and an ammo
 // count and fires at the nearest exposed bead of its colour. When its ammo runs
 // out it leaves and frees the dock. Fill every dock with turrets that have
@@ -32,6 +34,7 @@ export const PALETTE = {
   R: { name: 'Rosewood', hex: '#cf7f72' },
   M: { name: 'Mushroom', hex: '#857262' },
   D: { name: 'Chocolate', hex: '#4a2e24' },
+  C: { name: 'Copper', hex: '#c27843' },
   S: { name: 'Stone', hex: '#8f9199' }, // used for stones and hammer turrets, never drawn as beads
 };
 
@@ -258,18 +261,53 @@ export function lockLeft(s, tile) {
   return Math.max(0, (tile.lock || 0) - s.placed);
 }
 
+// A linked turret's partner, if it's also at the front of its column.
+export function partnerAtFront(s, tile) {
+  if (tile.link == null) return null;
+  const loc = s.level.tileLoc[tile.link];
+  return s.colPos[loc.c] === loc.k ? s.level.tiles[tile.link] : null;
+}
+
+// Can the front turret of this column be sent somewhere right now (ignoring slots)?
 export function canPlace(s, col) {
   const tile = frontTile(s, col);
-  return !!tile && lockLeft(s, tile) === 0;
+  if (!tile || lockLeft(s, tile) > 0) return false;
+  if (tile.link == null) return true;
+  const partner = partnerAtFront(s, tile);
+  return !!partner && lockLeft(s, partner) === 0;
+}
+
+const freeCount = (s, side) => {
+  const [from, to] = side === 'bottom' ? [0, s.D] : [s.D, s.D + s.T];
+  let n = 0;
+  for (let d = from; d < to; d++) if (!s.docks[d]) n++;
+  return n;
+};
+
+// The sides this column's front turret (and its partner, if linked) could go to.
+export function sidesFor(s, col) {
+  if (!canPlace(s, col)) return [];
+  const need = frontTile(s, col).link == null ? 1 : 2;
+  return freeSides(s).filter((side) => freeCount(s, side) >= need);
 }
 
 // Move the front turret of a column into a dock. Returns the tile, or null.
+// A linked partner goes into the next free slot on the same side.
 export function place(s, col, dock = firstFreeDock(s), arriving = false) {
   const tile = frontTile(s, col);
-  if (!tile || lockLeft(s, tile) > 0 || dock < 0 || s.docks[dock]) return null;
+  if (!tile || !canPlace(s, col) || dock < 0 || s.docks[dock]) return null;
+  const side = dockSide(s, dock);
+  if (tile.link != null && freeCount(s, side) < 2) return null;
   s.colPos[col]++;
   s.placed++;
   s.docks[dock] = { tile: tile.id, color: tile.color, count: tile.count, arriving };
+  if (tile.link != null) {
+    const partner = s.level.tiles[tile.link];
+    const loc = s.level.tileLoc[partner.id];
+    s.colPos[loc.c]++;
+    s.placed++;
+    s.docks[firstFreeDock(s, side)] = { tile: partner.id, color: partner.color, count: partner.count, arriving };
+  }
   return tile;
 }
 
@@ -308,7 +346,7 @@ export function canAnyFire(s) {
 export function isStuck(s) {
   if (s.beadsLeft === 0 || s.docks.some((d) => d && d.arriving) || canAnyFire(s)) return false;
   if (!anyFreeDock(s)) return true;
-  return !s.level.columns.some((_, c) => canPlace(s, c));
+  return !s.level.columns.some((_, c) => sidesFor(s, c).length > 0);
 }
 
 export function stuckReason(s) {
@@ -349,11 +387,13 @@ export function solve(start, budget = 30000) {
       const sigs = new Set();
       for (let c = 0; c < s.level.columns.length; c++) {
         const tile = frontTile(s, c);
-        if (!tile || lockLeft(s, tile) > 0) continue;
-        const sig = tile.color + ':' + tile.count;
+        if (!tile || !sidesFor(s, c).includes(side)) continue;
+        const sig = tile.link == null ? tile.color + ':' + tile.count : 'link' + Math.min(tile.id, tile.link);
         if (sigs.has(sig)) continue;
         sigs.add(sig);
-        cands.push({ c, side, score: exposedOnSide(s, tile.color, side) - tile.count * 0.01 });
+        let score = exposedOnSide(s, tile.color, side) - tile.count * 0.01;
+        if (tile.link != null) score += exposedOnSide(s, s.level.tiles[tile.link].color, side);
+        cands.push({ c, side, score });
       }
     }
     cands.sort((a, b) => b.score - a.score);
@@ -487,8 +527,21 @@ export function buildLevel(def) {
         // A padlock that opens a few turrets after this one would reach the front.
         if (def.locks && rand() < def.locks) t.lock = r * ncols + 2 + Math.floor(rand() * 4);
       });
+      // Chain some neighbouring turrets in this row together.
+      if (def.links) {
+        for (let c = 0; c + 1 < ncols; c++) {
+          const a = tiles[columns[c][r]], b = tiles[columns[c + 1][r]];
+          if (!a || !b || a.link != null || b.link != null || rand() >= def.links) continue;
+          a.link = b.id;
+          b.link = a.id;
+          a.lock = b.lock = Math.max(a.lock, b.lock); // a pair opens together
+          c++;
+        }
+      }
     }
     const level = { ...base, tiles, columns, attempt };
+    level.tileLoc = [];
+    columns.forEach((col, c) => col.forEach((id, k) => (level.tileLoc[id] = { c, k })));
     const result = solve(newState(level));
     if (result.solved) return { ...level, solution: result.moves };
   }

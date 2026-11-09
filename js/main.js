@@ -1,6 +1,6 @@
 import { LEVELS } from './levels.js';
 import * as engine from './engine.js';
-import { PALETTE, buildLevel, pictureOf, newState, cloneState, place, tick, isStuck, stuckReason, canAnyFire, firstFreeDock, freeSides, dockSide, frontTile, findTarget, lockLeft } from './engine.js';
+import { PALETTE, buildLevel, pictureOf, newState, cloneState, place, tick, isStuck, stuckReason, canAnyFire, firstFreeDock, freeSides, sidesFor, dockSide, frontTile, findTarget, lockLeft } from './engine.js';
 import { beadSprite, iceSprite, stoneSprite, drawTurret, drawMystery, drawLock, drawPad, roundRect, clearSpriteCache } from './render.js';
 import { sfx, unlockAudio, setMuted } from './audio.js';
 
@@ -31,8 +31,6 @@ function getLevel(id) {
     const def = LEVELS.find((l) => l.id === id);
     const level = buildLevel(def);
     level.hex = level.colors.map((k) => PALETTE[k].hex);
-    level.tileLoc = [];
-    level.columns.forEach((col, c) => col.forEach((id, k) => (level.tileLoc[id] = { c, k })));
     builtLevels.set(id, level);
   }
   return builtLevels.get(id);
@@ -149,8 +147,8 @@ function tapColumn(c, side, dock) {
   const st = game.state;
   const tile = frontTile(st, c);
   if (!tile) return false;
-  const sides = freeSides(st);
-  if (!sides.length || lockLeft(st, tile) > 0 || (side && !sides.includes(side))) {
+  const sides = sidesFor(st, c); // empty if locked, or linked and its partner isn't ready
+  if (!sides.length || (side && !sides.includes(side))) {
     game.choosing = -1;
     sfx.bonk();
     game.shake = { col: c, t: 0.4 };
@@ -169,9 +167,13 @@ function tapColumn(c, side, dock) {
   if (st.docks[d] || dockSide(st, d) !== side) return false;
   game.undo.push(snapshot());
   place(st, c, d, true);
-  game.arrivals.push({ dock: d, tile: tile.id, t: ARRIVE_TIME });
-  const v = game.vis.get(tile.id);
-  if (v) v.pop = 1;
+  // a linked partner travels too
+  st.docks.forEach((dk, i) => {
+    if (!dk || !dk.arriving || (dk.tile !== tile.id && dk.tile !== tile.link)) return;
+    game.arrivals.push({ dock: i, tile: dk.tile, t: ARRIVE_TIME });
+    const v = game.vis.get(dk.tile);
+    if (v) v.pop = 1;
+  });
   sfx.place();
   updateHud();
   return true;
@@ -562,8 +564,9 @@ function draw() {
   // While a turret is picked up, the free slots glow to show where it can go.
   if (g.choosing >= 0) {
     const glow = 0.55 + Math.sin(g.time * 6) * 0.35;
+    const ok = sidesFor(g.state, g.choosing);
     g.state.docks.forEach((d, i) => {
-      if (d) return;
+      if (d || !ok.includes(dockSide(g.state, i))) return;
       const p = L.docks[i], sz = L.u * 0.94;
       ctx.save();
       ctx.strokeStyle = `rgba(123,92,196,${glow})`;
@@ -586,6 +589,15 @@ function draw() {
     trayItems.push({ t, v, row: p.row });
   }
   trayItems.sort((a, b) => b.row - a.row);
+  // chains between linked turrets
+  const drawn = new Set();
+  for (const { t, v } of trayItems) {
+    if (t.link == null || drawn.has(t.id)) continue;
+    const w = g.vis.get(t.link);
+    if (!w || docked.has(t.link) || Math.min(v.a, w.a) < 0.05) continue;
+    drawn.add(t.link);
+    drawChain(v.x, v.y - L.t * 0.05, w.x, w.y - L.t * 0.05, Math.min(v.a, w.a));
+  }
   for (const { t, v, row } of trayItems) {
     ctx.save();
     ctx.globalAlpha = v.a * (row === 0 ? 1 : 0.62);
@@ -672,6 +684,22 @@ function draw() {
   ctx.globalAlpha = 1;
 }
 
+function drawChain(x1, y1, x2, y2, alpha) {
+  const n = Math.max(3, Math.round(Math.hypot(x2 - x1, y2 - y1) / (L.t * 0.12)));
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.lineWidth = Math.max(2, L.t * 0.045);
+  for (let i = 0; i <= n; i++) {
+    const t = i / n;
+    const x = x1 + (x2 - x1) * t, y = y1 + (y2 - y1) * t + Math.sin(t * Math.PI) * L.t * 0.12;
+    ctx.strokeStyle = i % 2 ? '#8d8f97' : '#b9bbc3';
+    ctx.beginPath();
+    ctx.ellipse(x, y, L.t * 0.07, L.t * 0.045, i % 2 ? 0 : Math.PI / 2, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
 function drawWaiting(x, y, u) {
   const r = u * 0.05;
   ctx.fillStyle = 'rgba(255,255,255,0.95)';
@@ -727,7 +755,8 @@ canvas.addEventListener('pointerdown', (e) => {
   if (game.choosing >= 0) {
     for (let d = 0; d < L.docks.length; d++) {
       const p = L.docks[d];
-      if (!game.state.docks[d] && Math.abs(x - p.x) < L.u * 0.5 && Math.abs(y - p.y) < L.u * 0.5) {
+      if (!game.state.docks[d] && sidesFor(game.state, game.choosing).includes(dockSide(game.state, d))
+        && Math.abs(x - p.x) < L.u * 0.5 && Math.abs(y - p.y) < L.u * 0.5) {
         tapColumn(game.choosing, dockSide(game.state, d), d);
         return;
       }

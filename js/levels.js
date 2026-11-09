@@ -1,4 +1,5 @@
 import { TUNING } from './tuning.js';
+import { rng } from './engine.js';
 
 // Level pictures. Each character is one bead (see PALETTE in engine.js):
 //   k liquorice  w snow  y sunshine  o tangerine  r cherry  p candyfloss
@@ -11,6 +12,7 @@ import { TUNING } from './tuning.js';
 // mystery: chance a turret behind the front row is hidden as "?".
 // locks: chance a turret gets a padlock. ice: chance a bead is frozen (iceColors limits which).
 // topDocks: slots above the picture. stones: chance a bead is covered by a stone (needs a hammer).
+// links: chance neighbouring turrets in a row are chained together (they go out as a pair).
 // section / tip: menu heading, and a one-off explainer the first time the level is opened.
 // dockOptions: slot counts the tuner may choose between (tools/tune-levels.mjs).
 
@@ -323,6 +325,52 @@ function nellyProfileRows() {
   for (const [x, y] of [[15, 7], [16, 7], [15, 8], [16, 8], [17, 8], [17, 7]]) g.set(x, y, 'k');
   g.set(15, 7, 'w');
   g.set(10, 6, 'D'); // close the gap between snout and forehead
+  return g.rows();
+}
+
+// Lana: a blue merle Aussie, head on, tongue out, on the grass.
+function lanaRows() {
+  const W = 28, H = 32, g = canvas(W, H);
+  const cx = 13.5;
+  const rand = rng(1234);
+  // merle splodges: a fixed scatter of black blobs
+  const blobs = Array.from({ length: 26 }, () => [rand() * W, rand() * 22, 0.8 + rand() * 1.6]);
+  const inRot = (x, y, px, py, rx, ry, a) => {
+    const ux = x - px, uy = y - py;
+    const al = ux * Math.cos(a) + uy * Math.sin(a), ac = -ux * Math.sin(a) + uy * Math.cos(a);
+    return (al / rx) ** 2 + (ac / ry) ** 2 < 1;
+  };
+  for (let y = 0; y < H; y++)
+    for (let x = 0; x < W; x++) {
+      let ch = 'g';
+      const head = inEllipse(x, y, cx, 12.5, 8.6, 9.2);
+      const ears = inRot(x, y, 4.2, 9, 3.3, 5.6, 0.5) || inRot(x, y, 22.8, 9, 3.3, 5.6, -0.5);
+      const bib = inEllipse(x, y, cx, 31, 11.5, 11) && y > 19;
+      if (head || ears || bib) {
+        ch = 's';
+        if (blobs.some(([bx, by, r]) => Math.hypot(x - bx, y - by) < r)) ch = 'k';
+        if ((x * 7 + y * 3) % 11 === 0) ch = 'w'; // silvery flecks
+      }
+      if (bib && Math.abs(x - cx) < 8.5) ch = 'w';
+      // copper cheeks and eyebrows
+      if (inEllipse(x, y, 8.2, 16.5, 2.3, 3) || inEllipse(x, y, 18.8, 16.5, 2.3, 3)) ch = 'C';
+      if (inEllipse(x, y, 9.2, 9.6, 1.3, 0.8) || inEllipse(x, y, 17.8, 9.6, 1.3, 0.8)) ch = 'C';
+      // white blaze up the middle and a white muzzle
+      if (head && Math.abs(x - cx) < 1 + Math.max(0, y - 11) * 0.35 && y >= 3) ch = 'w';
+      if (inEllipse(x, y, cx, 19, 4.6, 3.6)) ch = 'w';
+      // tongue
+      if (inEllipse(x, y, cx, 23.8, 2.2, 2.6) && y >= 22) ch = 'p';
+      g.set(x, y, ch);
+    }
+  // pale blue eyes with dark pupils and a dark rim
+  for (const ex of [9, 17]) {
+    for (const [dx, dy, ch] of [[0, 0, 'c'], [1, 0, 'c'], [0, 1, 'c'], [1, 1, 'k'], [-1, 0, 'k'], [-1, 1, 'k'], [2, 0, 'k']]) g.set(ex + dx, 12 + dy, ch);
+  }
+  // nose with its pink patch, and the mouth
+  for (let x = 12; x <= 15; x++) for (let y = 17; y <= 19; y++) g.set(x, y, 'k');
+  g.set(13, 17, 'p'); g.set(14, 17, 'p'); g.set(12, 17, 'p');
+  for (const x of [10, 11, 12, 15, 16, 17]) g.set(x, 21, 'k');
+  g.set(9, 20, 'k'); g.set(18, 20, 'k');
   return g.rows();
 }
 
@@ -941,6 +989,15 @@ export const RAW_LEVELS = [
     id: 37, name: 'Nelly Looks Up', columns: 5, chunks: [20, 30, 40], noise: 6, mystery: 0.5, locks: 0.25, ice: 0.12,
     iceColors: 'cD', stones: 0.08, topDocks: 2, dockOptions: [3],
     rows: nellyProfileRows,
+  },
+  {
+    tip: {
+      title: 'Linked turrets',
+      text: 'Turrets joined by a chain go out together. Both need to be at the front, and you need two free slots on the same row.',
+    },
+    id: 38, name: 'Lana', columns: 5, chunks: [20, 30, 40], noise: 6, mystery: 0.5, locks: 0.2, ice: 0.12,
+    iceColors: 'gs', links: 0.2, topDocks: 2, dockOptions: [3],
+    rows: lanaRows,
   },
 ];
 
