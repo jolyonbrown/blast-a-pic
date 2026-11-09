@@ -1024,8 +1024,8 @@ export const RAW_LEVELS = [
       title: 'Stones and hammers',
       text: 'Some beads are hidden under stones. Only a grey hammer turret can smash a stone, and then the bead underneath needs its own colour as usual.',
     },
-    id: 37, name: 'Nelly Looks Up', columns: 5, chunks: [20, 30, 40], noise: 6, mystery: 0.5, locks: 0.25, ice: 0.12,
-    iceColors: 'cD', stones: 0.08, topDocks: 2, dockOptions: [3],
+    id: 37, name: 'Nelly Looks Up', columns: 5, chunks: [20, 30, 40], noise: 6, mystery: 0.45, locks: 0.2, ice: 0.12,
+    iceColors: 'cD', stones: 0.08, topDocks: 2, dockOptions: [4, 3],
     rows: nellyProfileRows,
   },
   {
@@ -1033,8 +1033,8 @@ export const RAW_LEVELS = [
       title: 'Linked turrets',
       text: 'Turrets joined by a chain go out together. Both need to be at the front, and you need two free slots on the same row.',
     },
-    id: 38, name: 'Lana', columns: 5, chunks: [20, 30, 40], noise: 6, mystery: 0.5, locks: 0.2, ice: 0.12,
-    iceColors: 'gs', links: 0.2, topDocks: 2, dockOptions: [3],
+    id: 38, name: 'Lana', columns: 5, chunks: [30, 40], noise: 5, mystery: 0.4, locks: 0.15, ice: 0.12,
+    iceColors: 'gs', links: 0.15, topDocks: 2, dockOptions: [4, 3],
     rows: lanaRows,
   },
   {
@@ -1042,8 +1042,8 @@ export const RAW_LEVELS = [
       title: 'Fog beads',
       text: 'Grey beads with a “?” are hiding their colour. They show what they really are once they reach the top or bottom of their column.',
     },
-    id: 39, name: 'Juno', columns: 5, chunks: [20, 30, 40], noise: 6.5, mystery: 0.5, locks: 0.25, ice: 0.14,
-    iceColors: 'yk', stones: 0.05, links: 0.15, fog: 0.18, topDocks: 2, dockOptions: [3],
+    id: 39, name: 'Juno', columns: 5, chunks: [30, 40], noise: 6, mystery: 0.45, locks: 0.2, ice: 0.14,
+    iceColors: 'yk', stones: 0.05, links: 0.12, fog: 0.18, topDocks: 2, dockOptions: [4, 3],
     rows: junoRows,
   },
 ];
