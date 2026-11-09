@@ -19,7 +19,7 @@ There are three sets of pictures:
 - **Elite** (36 onwards) adds **slots above the picture**: turrets up there fire downwards, so a
   column can be opened from either end. When both rows have room, tap a turret to pick it up,
   then tap the glowing slot you want. Elite also has **stones**, which cover beads until a grey
-  **hammer** turret smashes them, and **linked turrets** chained in pairs that go out together.
+  **hammer** turret smashes them (hammers reach either end of a column), and **linked turrets** chained in pairs that go out together.
   The last of them adds **fog beads**, lavender "?" beads that show their colour once they're
   uncovered. Starring Nelly, Lana and Juno.
 

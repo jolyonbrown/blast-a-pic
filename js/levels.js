@@ -11,7 +11,8 @@ import { rng } from './engine.js';
 // chunks: turret ammo sizes to pick from. noise: how jumbled the tray order is.
 // mystery: chance a turret behind the front row is hidden as "?".
 // locks: chance a turret gets a padlock. ice: chance a bead is frozen (iceColors limits which).
-// topDocks: slots above the picture. stones: chance a bead is covered by a stone (needs a hammer).
+// topDocks: slots above the picture. stones: chance a bead is covered by a stone (needs a hammer);
+// stoneDepth keeps stones within that many beads of a column's end; hammerChunks: swings per hammer.
 // fog: chance a bead hides its colour until it's exposed.
 // links: chance neighbouring turrets in a row are chained together (they go out as a pair).
 // section / tip: menu heading, and a one-off explainer the first time the level is opened.
@@ -1022,10 +1023,10 @@ export const RAW_LEVELS = [
   {
     tip: {
       title: 'Stones and hammers',
-      text: 'Some beads are hidden under stones. Only a grey hammer turret can smash a stone, and then the bead underneath needs its own colour as usual.',
+      text: 'Some beads are hidden under stones. Only a grey hammer turret can smash a stone (from either end of a column, wherever it sits), and then the bead underneath needs its own colour as usual.',
     },
-    id: 37, name: 'Nelly Looks Up', columns: 5, chunks: [30, 40], noise: 5, mystery: 0.4, locks: 0.12, ice: 0.12,
-    iceColors: 'cD', stones: 0.05, hammerChunks: [5, 6, 8], topDocks: 2, dockOptions: [4, 3],
+    id: 37, name: 'Nelly Looks Up', columns: 5, chunks: [30, 40], noise: 4, mystery: 0.3, locks: 0.1, ice: 0.12,
+    iceColors: 'cD', stones: 0.04, stoneDepth: 3, hammerChunks: [3, 4], topDocks: 2, dockOptions: [5, 4],
     rows: nellyProfileRows,
   },
   {

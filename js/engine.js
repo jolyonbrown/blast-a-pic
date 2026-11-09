@@ -205,19 +205,24 @@ function hits(s, i, color) {
 export function findTarget(s, d, color) {
   const [px, py] = dockPoint(s, d);
   const { W } = s;
-  const ends = d < s.D ? s.bottom : s.top;
+  // Hammers lob over the picture: they can smash a stone at either end of a
+  // column, whichever row of slots they're in. Colours only reach their own end.
+  const hammer = color === s.level.stoneColor;
+  const ends = hammer && s.T > 0 ? [s.bottom, s.top] : [d < s.D ? s.bottom : s.top];
   let best = -1, bestDist = Infinity;
-  for (let x = 0; x < W; x++) {
-    const y = ends[x];
-    if (y < 0 || !hits(s, y * W + x, color)) continue;
-    const dist = (x - px) ** 2 + (y - py) ** 2;
-    if (dist < bestDist) { bestDist = dist; best = y * W + x; }
-  }
+  for (const end of ends)
+    for (let x = 0; x < W; x++) {
+      const y = end[x];
+      if (y < 0 || !hits(s, y * W + x, color)) continue;
+      const dist = (x - px) ** 2 + (y - py) ** 2;
+      if (dist < bestDist) { bestDist = dist; best = y * W + x; }
+    }
   return best;
 }
 
 // How many beads of this colour the slots on one side could hit right now.
 export function exposedOnSide(s, color, side) {
+  if (color === s.level.stoneColor) return exposedCount(s, color); // hammers reach both ends
   const ends = side === 'bottom' ? s.bottom : s.top;
   let n = 0;
   for (let x = 0; x < s.W; x++) if (ends[x] >= 0 && hits(s, ends[x] * s.W + x, color)) n++;
@@ -479,13 +484,17 @@ export function buildLevel(def) {
     const eligible = def.iceColors ? def.iceColors.includes(ch) : ch !== def.outline;
     hp[i] = def.ice && eligible && iceRand() < def.ice ? 2 : 1;
   }
-  // Stones: also fixed per picture, never on frozen beads or the outline.
+  // Stones: also fixed per picture, never on frozen beads or the outline, and
+  // only near the ends of columns (stoneDepth) so hammers clear them early
+  // instead of sitting in a slot for ages waiting for buried ones.
   const stone = new Uint8Array(art.W * art.H);
   let stoneColor = -1;
   if (def.stones) {
     const stoneRand = rng(def.id * 5113 + 7);
+    const { layer: depthOf } = peelLayers({ W: art.W, H: art.H, cells, topDocks: def.topDocks ?? 0 });
+    const maxDepth = def.stoneDepth ?? Infinity;
     for (let i = 0; i < cells.length; i++)
-      if (cells[i] >= 0 && hp[i] === 1 && colors[cells[i]] !== def.outline && stoneRand() < def.stones) stone[i] = 1;
+      if (cells[i] >= 0 && hp[i] === 1 && colors[cells[i]] !== def.outline && depthOf[i] <= maxDepth && stoneRand() < def.stones) stone[i] = 1;
     if (stone.includes(1)) { stoneColor = colors.length; colors.push('S'); }
   }
   // Fog: which beads keep their colour secret until they're exposed.
