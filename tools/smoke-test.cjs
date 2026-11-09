@@ -32,8 +32,8 @@ const out = process.argv[2];
       for (const c of moves) {
         // Like a patient player: wait until the turrets have finished what they can do.
         await page.waitForFunction(() => window.__blast.idle || window.__blast.game.phase !== 'play');
-        const ok = await page.evaluate((c) => window.__blast.tapColumn(c), c);
-        if (!ok) { console.log(`${name} level ${id}: tap on column ${c} refused`); failed = true; break; }
+        const ok = await page.evaluate((m) => window.__blast.tapColumn(m.c, m.side), c);
+        if (!ok) { console.log(`${name} level ${id}: tap on column ${c.c} (${c.side}) refused`); failed = true; break; }
       }
       try {
         await page.waitForSelector('#dialog:not(.hidden) #dialog-title', { timeout: 20000 });

@@ -20,6 +20,8 @@ const smartFloor = (idx) => (idx < 12 ? 0 : 60 - (idx - 12) * 2.5);
 // falls steadily level by level. The secret level is the hardest of all.
 function expertGoal(def, idx) {
   if (def.secret) return { random: 0, greedyMax: 2, smart: 8, smartMin: 3 };
+  // Elite (36+): each new idea arrives a little gentler, then the screw tightens.
+  if (def.id >= 36) return { random: 2, greedyMax: 20, smart: 38 - (def.id - 36) * 2.5, smartMin: 15 };
   const i = idx - 24;
   return { random: Math.max(1, 4 - i * 0.4), greedyMax: 25 - i * 1.5, smart: 45 - i * 3, smartMin: 12 };
 }

@@ -16,6 +16,10 @@ There are three sets of pictures:
   need two hits.
 - **Expert** (25–34) is festive and fiendish, and gets harder with every picture. The later ones
   have full backgrounds, so every column of beads is deep.
+- **Elite** (36 onwards) adds **slots above the picture**: turrets up there fire downwards, so a
+  column can be opened from either end. When both rows have room, tap a turret to pick it up,
+  then tap the glowing slot you want. Elite also has **stones**, which cover beads until a grey
+  **hammer** turret smashes them. Starring Nelly the dog.
 
 There's also a **secret level** on the About page (tap the mystery portrait). It's the hardest in
 the game. It's a bead portrait drawn by hand from a photo; the photo itself isn't in the repo.
@@ -89,7 +93,8 @@ Colours: `k` liquorice, `w` snow, `y` sunshine, `o` tangerine, `r` cherry, `p` c
 `v` violet, `b` ocean, `c` sky, `g` leaf, `G` forest, `n` cocoa, `t` biscuit, `s` pebble.
 `outline: 'k'` draws the dark border for you.
 
-Optional extras: `secret: true` (left out of the picture grid; the About page opens it),
+Optional extras: `topDocks: 2` (slots above the picture), `stones: 0.08` (chance a bead is
+covered by a stone; hammer turrets are added automatically), `secret: true` (left out of the picture grid; the About page opens it),
 `locks: 0.2` (chance a turret is padlocked), `ice: 0.15` (chance a bead is
 frozen; `iceColors: 'w'` limits it to certain colours), `section: 'Name'` (a heading in the
 menu), and `tip: { title, text }` (shown once, the first time the level is opened).

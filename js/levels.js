@@ -10,6 +10,7 @@ import { TUNING } from './tuning.js';
 // chunks: turret ammo sizes to pick from. noise: how jumbled the tray order is.
 // mystery: chance a turret behind the front row is hidden as "?".
 // locks: chance a turret gets a padlock. ice: chance a bead is frozen (iceColors limits which).
+// topDocks: slots above the picture. stones: chance a bead is covered by a stone (needs a hammer).
 // section / tip: menu heading, and a one-off explainer the first time the level is opened.
 // dockOptions: slot counts the tuner may choose between (tools/tune-levels.mjs).
 
@@ -288,6 +289,40 @@ function cottageRows() {
       if (y >= 22) ch = (x + y) % 9 === 0 ? 'c' : 'w';
       g.set(x, y, ch);
     }
+  return g.rows();
+}
+
+// Nelly in profile, looking up and to the left.
+function nellyProfileRows() {
+  const W = 30, H = 30, g = canvas(W, H);
+  const inRot = (x, y, cx, cy, rx, ry, a) => {
+    const ux = x - cx, uy = y - cy;
+    const al = ux * Math.cos(a) + uy * Math.sin(a), ac = -ux * Math.sin(a) + uy * Math.cos(a);
+    return (al / rx) ** 2 + (ac / ry) ** 2 < 1;
+  };
+  for (let y = 0; y < H; y++)
+    for (let x = 0; x < W; x++) {
+      let ch = 'c';
+      const head = inRot(x, y, 17.5, 10, 8.2, 7, 0.1);
+      const snout = inRot(x, y, 8.5, 10, 7.4, 4.1, 0.18);
+      const neck = inRot(x, y, 18, 23, 8.5, 11, 0) && y >= 12;
+      if (head || snout || neck) ch = 'D';
+      // the underside of the muzzle and the chin have gone grey
+      if (snout && !head && y - 10 > (x - 8.5) * 0.18 + 1.2) ch = 's';
+      if (inRot(x, y, 11, 13.6, 3.6, 1.5, 0.2)) ch = 's';
+      // a lighter stripe along the top of the nose
+      if (snout && !head && Math.abs(y - (10 + (x - 8.5) * 0.18) + 2.6) < 0.6) ch = 'n';
+      // white chest
+      if (inRot(x, y, 14.5, 26.5, 2.6, 4.6, 0.15) && neck) ch = 'w';
+      // the big curly ear: chocolate, cocoa and biscuit curls
+      if (inRot(x, y, 22.5, 19, 5.4, 10.5, -0.15) && y > 8) ch = (x * 2 + y) % 5 === 0 ? 't' : (x + y) % 3 === 0 ? 'D' : 'n';
+      g.set(x, y, ch);
+    }
+  // nose and eye (with a glint)
+  for (const [x, y] of [[1, 7], [2, 7], [1, 8], [2, 8], [3, 8], [2, 6], [1, 9]]) g.set(x, y, 'k');
+  for (const [x, y] of [[15, 7], [16, 7], [15, 8], [16, 8], [17, 8], [17, 7]]) g.set(x, y, 'k');
+  g.set(15, 7, 'w');
+  g.set(10, 6, 'D'); // close the gap between snout and forehead
   return g.rows();
 }
 
@@ -853,6 +888,59 @@ export const RAW_LEVELS = [
       'kkkkkkkkkkkkkk',
       'kkkkkkkkkkkkkk',
     ],
+  },
+
+  // ------------------------------------------------------------ Elite
+  // Slots above the picture too, stones and hammers. Starring Nelly.
+  {
+    section: 'Elite',
+    tip: {
+      title: 'Slots up top',
+      text: 'There are slots above the picture now. Turrets up there fire downwards, so you can work on a column from either end. Tap a turret, then tap the slot you want.',
+    },
+    id: 36, name: 'Nelly', mirror: 'even', columns: 5, chunks: [20, 30, 40], noise: 6, mystery: 0.5, locks: 0.25, ice: 0.18,
+    iceColors: 'cDn', topDocks: 2, dockOptions: [3],
+    rows: [
+      'cccccccccccccc',
+      'ccccccccDDDDDD',
+      'ccccccDDDDDDDD',
+      'cccccDDDDDDDDD',
+      'ccccDDDDDDDDDD',
+      'cccnDDDDDDDDDD',
+      'ccnnDDDDDDDDDD',
+      'cnDnnDDDDDDDDD',
+      'cnnDnDDDDDDDDD',
+      'nDnnDnDDDDDDDD',
+      'nnDnnDDkkkDDDD',
+      'nDnnDnDkwkDDDD',
+      'nnDnnDDkkkDDDD',
+      'DnnDnnDDDDDDnD',
+      'nDnnDnDDDDDDnn',
+      'nnDnnDnDDDDsnn',
+      'DnnDnnDDDDssnn',
+      'nDnnDnDDDsssss',
+      'nnDnnDnDsssskk',
+      'DnnDnnDDssskkk',
+      'nDnnDnnDssskkk',
+      'nnDnnDnDsssskk',
+      'DnnDnnDDDsssss',
+      'nDnnDnnDDDssww',
+      'nnDnnDnDDDDwww',
+      'cnnDnnDDDDDDww',
+      'cnDnnDnDDDDDww',
+      'ccnnDnnDDDDwww',
+      'cccnnDDDDDwwww',
+      'ccccDDDDDwwwww',
+    ],
+  },
+  {
+    tip: {
+      title: 'Stones and hammers',
+      text: 'Some beads are hidden under stones. Only a grey hammer turret can smash a stone, and then the bead underneath needs its own colour as usual.',
+    },
+    id: 37, name: 'Nelly Looks Up', columns: 5, chunks: [20, 30, 40], noise: 6, mystery: 0.5, locks: 0.25, ice: 0.12,
+    iceColors: 'cD', stones: 0.08, topDocks: 2, dockOptions: [3],
+    rows: nellyProfileRows,
   },
 ];
 
