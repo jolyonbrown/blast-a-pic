@@ -12,6 +12,7 @@ import { rng } from './engine.js';
 // mystery: chance a turret behind the front row is hidden as "?".
 // locks: chance a turret gets a padlock. ice: chance a bead is frozen (iceColors limits which).
 // topDocks: slots above the picture. stones: chance a bead is covered by a stone (needs a hammer).
+// fog: chance a bead hides its colour until it's exposed.
 // links: chance neighbouring turrets in a row are chained together (they go out as a pair).
 // section / tip: menu heading, and a one-off explainer the first time the level is opened.
 // dockOptions: slot counts the tuner may choose between (tools/tune-levels.mjs).
@@ -369,6 +370,43 @@ function lanaRows() {
   // nose with its pink patch, and the mouth
   for (let x = 12; x <= 15; x++) for (let y = 17; y <= 19; y++) g.set(x, y, 'k');
   g.set(13, 17, 'p'); g.set(14, 17, 'p'); g.set(12, 17, 'p');
+  for (const x of [10, 11, 12, 15, 16, 17]) g.set(x, 21, 'k');
+  g.set(9, 20, 'k'); g.set(18, 20, 'k');
+  return g.rows();
+}
+
+// Juno: a black tri Aussie with one blue eye and one brown, and her red ball.
+function junoRows() {
+  const W = 28, H = 32, g = canvas(W, H);
+  const cx = 13.5;
+  const inRot = (x, y, px, py, rx, ry, a) => {
+    const ux = x - px, uy = y - py;
+    const al = ux * Math.cos(a) + uy * Math.sin(a), ac = -ux * Math.sin(a) + uy * Math.cos(a);
+    return (al / rx) ** 2 + (ac / ry) ** 2 < 1;
+  };
+  for (let y = 0; y < H; y++)
+    for (let x = 0; x < W; x++) {
+      let ch = 'y';
+      const head = inEllipse(x, y, cx, 12.5, 8.6, 9.2);
+      const ears = inRot(x, y, 4.4, 7.5, 3.2, 5.2, 0.7) || inRot(x, y, 22.6, 7.5, 3.2, 5.2, -0.7);
+      const ruff = inEllipse(x, y, cx, 30, 12.5, 11.5) && y > 18;
+      if (head || ears || ruff) ch = 'k';
+      if (ruff && Math.abs(x - cx) < 8.5 - Math.max(0, 24 - y) * 0.6) ch = 'w'; // the big white bib
+      // copper cheeks and eyebrows
+      if (inEllipse(x, y, 7.8, 16.8, 2.4, 3.2) || inEllipse(x, y, 19.2, 16.8, 2.4, 3.2)) ch = 'C';
+      if (inEllipse(x, y, 9.4, 9.4, 1.4, 0.8) || inEllipse(x, y, 17.6, 9.4, 1.4, 0.8)) ch = 'C';
+      // white blaze, widening into the muzzle
+      if (head && Math.abs(x - cx) < 1.3 + Math.max(0, y - 9) * 0.45 && y >= 2) ch = 'w';
+      if (inEllipse(x, y, cx, 19, 5, 3.8)) ch = 'w';
+      if (inEllipse(x, y, cx, 23.8, 2.2, 2.4) && y >= 22) ch = 'p'; // tongue
+      // the red ball, bottom right
+      if (Math.hypot(x - 23.5, y - 28) < 3.3) ch = Math.hypot(x - 22.4, y - 26.7) < 1 ? 'w' : 'r';
+      g.set(x, y, ch);
+    }
+  // one ice-blue eye and one brown, both with dark rims
+  for (const [ex, iris] of [[9, 'c'], [17, 'n']])
+    for (const [dx, dy, ch] of [[0, 0, iris], [1, 0, iris], [0, 1, iris], [1, 1, 'k'], [-1, 0, 'k'], [-1, 1, 'k'], [2, 0, 'k'], [2, 1, 'k']]) g.set(ex + dx, 12 + dy, ch);
+  for (let x = 12; x <= 15; x++) for (let y = 17; y <= 19; y++) g.set(x, y, 'k');
   for (const x of [10, 11, 12, 15, 16, 17]) g.set(x, 21, 'k');
   g.set(9, 20, 'k'); g.set(18, 20, 'k');
   return g.rows();
@@ -998,6 +1036,15 @@ export const RAW_LEVELS = [
     id: 38, name: 'Lana', columns: 5, chunks: [20, 30, 40], noise: 6, mystery: 0.5, locks: 0.2, ice: 0.12,
     iceColors: 'gs', links: 0.2, topDocks: 2, dockOptions: [3],
     rows: lanaRows,
+  },
+  {
+    tip: {
+      title: 'Fog beads',
+      text: 'Grey beads with a “?” are hiding their colour. They show what they really are once they reach the top or bottom of their column.',
+    },
+    id: 39, name: 'Juno', columns: 5, chunks: [20, 30, 40], noise: 6.5, mystery: 0.5, locks: 0.25, ice: 0.14,
+    iceColors: 'yk', stones: 0.05, links: 0.15, fog: 0.18, topDocks: 2, dockOptions: [3],
+    rows: junoRows,
   },
 ];
 

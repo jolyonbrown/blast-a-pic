@@ -1,7 +1,7 @@
 import { LEVELS } from './levels.js';
 import * as engine from './engine.js';
 import { PALETTE, buildLevel, pictureOf, newState, cloneState, place, tick, isStuck, stuckReason, canAnyFire, firstFreeDock, freeSides, sidesFor, dockSide, frontTile, findTarget, lockLeft } from './engine.js';
-import { beadSprite, iceSprite, stoneSprite, drawTurret, drawMystery, drawLock, drawPad, roundRect, clearSpriteCache } from './render.js';
+import { beadSprite, iceSprite, stoneSprite, fogSprite, drawTurret, drawMystery, drawLock, drawPad, roundRect, clearSpriteCache } from './render.js';
 import { sfx, unlockAudio, setMuted } from './audio.js';
 
 // ================================================================ save data
@@ -66,6 +66,7 @@ function startLevel(id) {
     pendingIce: new Set(), // frozen beads whose ice hasn't visibly cracked yet
     pendingStone: new Set(), // stones hit by a hammer that hasn't landed yet
     choosing: -1, // column whose turret is waiting for you to pick a slot
+    revealed: new Set(), // fog beads whose colour has been seen
     locked: new Set(), // padlocked turrets (to celebrate when they open)
     particles: [],
     vis: new Map(),
@@ -353,6 +354,19 @@ function update(dt) {
     }
   });
 
+  // Fog beads show their colour once they reach either end of their column.
+  if (g.level.fog) {
+    const st = g.state;
+    for (let x = 0; x < st.W; x++) {
+      for (const y of st.T > 0 ? [st.bottom[x], st.top[x]] : [st.bottom[x]]) {
+        const i = y * st.W + x;
+        if (y < 0 || !g.level.fog[i] || g.revealed.has(i)) continue;
+        g.revealed.add(i);
+        if (g.time > 0.3) { const p = beadCenter(i); for (let k = 0; k < 4; k++) spark(p.x, p.y, g.level.hex[st.cells[i]]); }
+      }
+    }
+  }
+
   // Padlocks opening.
   for (const id of [...g.locked]) {
     if (lockLeft(g.state, g.level.tiles[id]) > 0) continue;
@@ -540,10 +554,12 @@ function draw() {
     }
   } else {
     const cells = g.state.cells;
+    const fog = fogSprite(cell * dpr);
     for (let i = 0; i < cells.length; i++) {
       let c = cells[i];
       if (c < 0) { c = g.pending.get(i); if (c === undefined) continue; }
-      ctx.drawImage(sprites[c], board.ox + (i % W) * cell, board.oy + ((i / W) | 0) * cell, cell, cell);
+      const sprite = g.level.fog && g.level.fog[i] && !g.revealed.has(i) ? fog : sprites[c];
+      ctx.drawImage(sprite, board.ox + (i % W) * cell, board.oy + ((i / W) | 0) * cell, cell, cell);
     }
     const ice = iceSprite(cell * dpr);
     const hp = g.state.hp;

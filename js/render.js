@@ -149,6 +149,24 @@ export function stoneSprite(size) {
   return c;
 }
 
+// A fog bead: a lavender bead with a "?" until its real colour is revealed.
+export function fogSprite(size) {
+  const px = Math.max(4, Math.round(size));
+  const key = 'fog' + px;
+  if (beadCache.has(key)) return beadCache.get(key);
+  const c = document.createElement('canvas');
+  c.width = c.height = px;
+  const g = c.getContext('2d');
+  g.drawImage(beadSprite('#a98fe0', px), 0, 0); // same lavender as the "?" turrets
+  g.fillStyle = '#ffffff';
+  g.font = `900 ${Math.round(px * 0.62)}px ui-rounded, system-ui, sans-serif`;
+  g.textAlign = 'center';
+  g.textBaseline = 'middle';
+  g.fillText('?', px / 2, px * 0.54);
+  beadCache.set(key, c);
+  return c;
+}
+
 export function clearSpriteCache() {
   beadCache.clear();
 }

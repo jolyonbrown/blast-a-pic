@@ -10,6 +10,7 @@
 //  - stones cover some beads; only hammer turrets (a grey "colour") can smash them
 //  - linked turrets are chained in pairs: both must be at the front, and they go
 //    out together into two free slots on the same side
+//  - fog beads hide their colour until they're exposed (purely visual; the rules don't change)
 // Turrets sit in a small number of docks; each turret has a colour and an ammo
 // count and fires at the nearest exposed bead of its colour. When its ammo runs
 // out it leaves and frees the dock. Fill every dock with turrets that have
@@ -487,8 +488,14 @@ export function buildLevel(def) {
       if (cells[i] >= 0 && hp[i] === 1 && colors[cells[i]] !== def.outline && stoneRand() < def.stones) stone[i] = 1;
     if (stone.includes(1)) { stoneColor = colors.length; colors.push('S'); }
   }
+  // Fog: which beads keep their colour secret until they're exposed.
+  const fog = new Uint8Array(art.W * art.H);
+  if (def.fog) {
+    const fogRand = rng(def.id * 3331 + 11);
+    for (let i = 0; i < cells.length; i++) if (cells[i] >= 0 && fogRand() < def.fog) fog[i] = 1;
+  }
   const base = {
-    id: def.id, name: def.name, W: art.W, H: art.H, cells, hp, colors, stone, stoneColor,
+    id: def.id, name: def.name, W: art.W, H: art.H, cells, hp, colors, stone, stoneColor, fog,
     docks: def.docks ?? 5,
     topDocks: def.topDocks ?? 0,
   };
