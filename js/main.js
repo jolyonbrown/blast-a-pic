@@ -449,7 +449,8 @@ function fire(shots) {
   shots.forEach((s, n) => {
     const v = g.vis.get(s.tile);
     const to = beadCenter(s.cell);
-    const from = v ? { x: v.x, y: v.y - L.u * 0.08 } : L.docks[s.dock];
+    const top = dockSide(g.state, s.dock) === 'top';
+    const from = v ? { x: v.x, y: v.y + (top ? 0.08 : -0.08) * L.u } : L.docks[s.dock]; // body centre
     const aim = Math.atan2(to.y - from.y, to.x - from.x);
     const reach = L.u * 0.44;
     const shot = {
@@ -463,7 +464,7 @@ function fire(shots) {
     else g.pendingIce.add(s.cell);
     if (v) { v.aim = aim; v.recoil = 1; }
     if (s.done) {
-      g.departing.push({ tile: s.tile, t: -0.18, x: v ? v.x : from.x, y: v ? v.y : from.y, aim });
+      g.departing.push({ tile: s.tile, t: -0.18, x: v ? v.x : from.x, y: v ? v.y : from.y, aim, flip: top });
       g.vis.delete(s.tile);
       setTimeout(() => sfx.done(), 160);
     }
@@ -673,9 +674,10 @@ function draw() {
     const v = g.vis.get(d.tile);
     if (!v) return;
     const u = L.u * v.s * (1 + v.pop * 0.12);
-    drawTurret(ctx, v.x, v.y, u, g.level.hex[d.color], { count: d.count, aim: v.aim, recoil: v.recoil, blink: v.blink, hammer: d.color === g.level.stoneColor });
     const top = dockSide(g.state, i) === 'top';
-    if (!d.arriving && g.phase === 'play' && findTarget(g.state, i, d.color) < 0 && !g.shots.length) drawWaiting(v.x, v.y + (top ? 0.55 : -0.55) * u, u);
+    drawTurret(ctx, v.x, v.y, u, g.level.hex[d.color], { count: d.count, aim: v.aim, recoil: v.recoil, blink: v.blink, hammer: d.color === g.level.stoneColor, flip: top });
+    // the "waiting" bubble sits on the base plate side, away from the barrel
+    if (!d.arriving && g.phase === 'play' && findTarget(g.state, i, d.color) < 0 && !g.shots.length) drawWaiting(v.x, v.y - 0.55 * u, u);
   });
 
   // departing turrets hop off
@@ -686,7 +688,7 @@ function draw() {
     ctx.save();
     ctx.globalAlpha = Math.max(0, 1 - t * 2);
     const tile = g.level.tiles[d.tile];
-    drawTurret(ctx, d.x, d.y - t * 60, L.u * s, g.level.hex[tile.color], { aim: d.aim, count: 0, hammer: tile.color === g.level.stoneColor });
+    drawTurret(ctx, d.x, d.y - t * 60, L.u * s, g.level.hex[tile.color], { aim: d.aim, count: 0, hammer: tile.color === g.level.stoneColor, flip: d.flip });
     ctx.restore();
   }
 

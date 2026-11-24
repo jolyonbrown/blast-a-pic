@@ -39,4 +39,10 @@ export const TUNING = {
   37: {"seed":37022,"docks":5,"noise":6.8,"attempt":0},
   38: {"seed":38024,"docks":4,"noise":2.5,"attempt":9},
   39: {"seed":39001,"docks":3,"noise":4.8,"attempt":4},
+  40: {"seed":40068,"docks":5,"noise":0.55,"attempt":0},
+  41: {"seed":41061,"docks":5,"noise":1.2,"attempt":0},
+  42: {"seed":42054,"docks":5,"noise":1,"attempt":0},
+  43: {"seed":43038,"docks":5,"noise":2.75,"attempt":0},
+  44: {"seed":44006,"docks":5,"noise":1.5,"attempt":2},
+  45: {"seed":45004,"docks":5,"noise":5.95,"attempt":0},
 };
