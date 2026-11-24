@@ -1,4 +1,4 @@
-import { LEVELS } from './levels.js';
+import { LEVELS, TIPS } from './levels.js';
 import * as engine from './engine.js';
 import { PALETTE, buildLevel, pictureOf, newState, cloneState, place, tick, isStuck, stuckReason, canAnyFire, firstFreeDock, freeSides, sidesFor, dockSide, frontTile, findTarget, lockLeft } from './engine.js';
 import { beadSprite, iceSprite, stoneSprite, fogSprite, drawTurret, drawMystery, drawLock, drawPad, roundRect, clearSpriteCache } from './render.js';
@@ -18,6 +18,7 @@ const isDone = (id) => save.done.includes(id);
 // A level opens once the previous (non-secret) one is done.
 function isUnlocked(i) {
   if (i === 0 || LEVELS[i].secret || isDone(LEVELS[i].id)) return true;
+  if (LEVELS[i].opensAfter) return isDone(LEVELS[i].opensAfter); // e.g. Space opens after the Warm-up
   const prev = LEVELS.slice(0, i).reverse().find((l) => !l.secret);
   return !prev || isDone(prev.id);
 }
@@ -92,16 +93,42 @@ function startLevel(id) {
   game.fronts = level.columns.map((_, c) => frontTile(game.state, c)?.id ?? -1);
   trackLocks();
   updateHud();
-  const def = LEVELS.find((l) => l.id === id);
   if (!save.seenHelp) {
     save.seenHelp = true;
     persist();
     showHelp();
-  } else if (def.tip && !save.tips.includes(id)) {
-    save.tips.push(id);
-    persist();
-    showDialog({ title: def.tip.title, text: def.tip.text, buttons: [{ label: 'Got it', primary: true, onClick: hideDialog }] });
+  } else {
+    const present = twistsIn(level);
+    const fresh = Object.keys(TIPS).filter((k) => present[k] && !tipSeen(k));
+    if (fresh.length) showTips(fresh);
   }
+}
+
+// Older saves remembered tips by level number rather than by twist.
+const OLD_TIP_LEVELS = { 14: 'locks', 15: 'ice', 36: 'topDocks', 37: 'stones', 38: 'links', 39: 'fog' };
+function tipSeen(key) {
+  return save.tips.includes(key) || Object.entries(OLD_TIP_LEVELS).some(([id, k]) => k === key && save.tips.includes(+id));
+}
+
+// Which twists a built level actually uses.
+function twistsIn(level) {
+  return {
+    locks: level.tiles.some((t) => t.lock),
+    ice: level.hp.some((h) => h > 1),
+    topDocks: level.topDocks > 0,
+    stones: level.stoneColor >= 0,
+    links: level.tiles.some((t) => t.link != null),
+    fog: level.fog.some(Boolean),
+  };
+}
+
+// Show one explainer after another.
+function showTips(keys) {
+  if (!keys.length) return hideDialog();
+  const [key, ...rest] = keys;
+  save.tips.push(key);
+  persist();
+  showDialog({ title: TIPS[key].title, text: TIPS[key].text, buttons: [{ label: rest.length ? 'Next' : 'Got it', primary: true, onClick: () => showTips(rest) }] });
 }
 
 function trackLocks() {
