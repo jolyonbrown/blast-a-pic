@@ -1075,12 +1075,12 @@ export const RAW_LEVELS = [
     rows: alienRows,
   },
   {
-    id: 44, name: 'Flying Saucer', outline: 'k', columns: 5, chunks: [20, 30], noise: 3, mystery: 0.35, locks: 0.15, ice: 0.12, topDocks: 2, dockOptions: [5, 4],
+    id: 44, name: 'Flying Saucer', outline: 'k', columns: 5, chunks: [20, 30], noise: 2, mystery: 0.2, topDocks: 2, dockOptions: [5],
     rows: ufoRows,
   },
   {
-    id: 45, name: 'Astronaut', outline: 'k', columns: 5, chunks: [20, 30], noise: 3.5, mystery: 0.35, locks: 0.15, ice: 0.12,
-    stones: 0.04, stoneDepth: 3, hammerChunks: [3, 4], topDocks: 2, dockOptions: [5, 4],
+    id: 45, name: 'Astronaut', outline: 'k', columns: 5, chunks: [20, 30], noise: 2.5, mystery: 0.25, locks: 0.08, ice: 0.08,
+    stones: 0.04, stoneDepth: 3, hammerChunks: [3, 4], topDocks: 2, dockOptions: [5],
     rows: astronautRows,
   },
   {
