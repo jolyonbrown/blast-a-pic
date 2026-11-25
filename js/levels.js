@@ -1089,7 +1089,7 @@ export const RAW_LEVELS = [
     rows: shootingStarRows,
   },
   {
-    id: 47, name: 'Planet Earth', columns: 5, chunks: [20, 30], noise: 4, mystery: 0.4, locks: 0.15, ice: 0.12,
+    id: 47, name: 'Planet Earth', columns: 5, chunks: [20, 30], noise: 3, mystery: 0.3, locks: 0.1, ice: 0.08,
     links: 0.12, fog: 0.15, topDocks: 2, dockOptions: [5, 4],
     rows: earthRows,
   },
