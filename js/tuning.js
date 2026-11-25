@@ -47,4 +47,6 @@ export const TUNING = {
   45: {"seed":45004,"docks":5,"noise":4.25,"attempt":0},
   46: {"seed":46016,"docks":5,"noise":6.8,"attempt":4},
   47: {"seed":47000,"docks":4,"noise":2.5,"attempt":36},
+  48: {"seed":48012,"docks":4,"noise":2.5,"attempt":43},
+  49: {"seed":49000,"docks":4,"noise":3,"attempt":2},
 };
