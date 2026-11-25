@@ -174,20 +174,24 @@ export function clearSpriteCache() {
 // ---------------------------------------------------------------- turrets
 
 // Draws a turret centred on (x, y) inside a box of size u.
-// opts: aim (radians, -PI/2 = up), recoil 0..1, blink 0..1, count, hammer
+// opts: aim (radians, -PI/2 = up), recoil 0..1, blink 0..1, count, hammer,
+// flip (for slots above the picture: base plate on top so the barrel can hang down)
 export function drawTurret(ctx, x, y, u, hex, opts = {}) {
   const aim = opts.aim ?? -Math.PI / 2;
   const recoil = opts.recoil ?? 0;
-  const by = y - u * 0.08; // body centre
+  const flip = !!opts.flip;
+  const by = y + (flip ? u * 0.08 : -u * 0.08); // body centre
   const bodyR = u * 0.3;
 
   ctx.save();
 
   // shadow
-  ctx.fillStyle = 'rgba(70,45,20,0.18)';
-  ctx.beginPath();
-  ctx.ellipse(x, y + u * 0.34, u * 0.4, u * 0.08, 0, 0, Math.PI * 2);
-  ctx.fill();
+  if (!flip) {
+    ctx.fillStyle = 'rgba(70,45,20,0.18)';
+    ctx.beginPath();
+    ctx.ellipse(x, y + u * 0.34, u * 0.4, u * 0.08, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
 
   // barrel (behind the body)
   ctx.save();
@@ -214,7 +218,7 @@ export function drawTurret(ctx, x, y, u, hex, opts = {}) {
   ctx.restore();
 
   // base plate with ammo count
-  const pw = u * 0.82, ph = u * 0.3, py = y + u * 0.08;
+  const pw = u * 0.82, ph = u * 0.3, py = flip ? y - u * 0.08 - ph : y + u * 0.08;
   ctx.fillStyle = '#5a5068';
   roundRect(ctx, x - pw / 2, py, pw, ph, ph * 0.4);
   ctx.fill();

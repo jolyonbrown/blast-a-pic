@@ -1,4 +1,4 @@
-import { LEVELS } from './levels.js';
+import { LEVELS, TIPS } from './levels.js';
 import * as engine from './engine.js';
 import { PALETTE, buildLevel, pictureOf, newState, cloneState, place, tick, isStuck, stuckReason, canAnyFire, firstFreeDock, freeSides, sidesFor, dockSide, frontTile, findTarget, lockLeft } from './engine.js';
 import { beadSprite, iceSprite, stoneSprite, fogSprite, drawTurret, drawMystery, drawLock, drawPad, roundRect, clearSpriteCache } from './render.js';
@@ -18,6 +18,7 @@ const isDone = (id) => save.done.includes(id);
 // A level opens once the previous (non-secret) one is done.
 function isUnlocked(i) {
   if (i === 0 || LEVELS[i].secret || isDone(LEVELS[i].id)) return true;
+  if (LEVELS[i].opensAfter) return isDone(LEVELS[i].opensAfter); // e.g. Space opens after the Warm-up
   const prev = LEVELS.slice(0, i).reverse().find((l) => !l.secret);
   return !prev || isDone(prev.id);
 }
@@ -92,16 +93,42 @@ function startLevel(id) {
   game.fronts = level.columns.map((_, c) => frontTile(game.state, c)?.id ?? -1);
   trackLocks();
   updateHud();
-  const def = LEVELS.find((l) => l.id === id);
   if (!save.seenHelp) {
     save.seenHelp = true;
     persist();
     showHelp();
-  } else if (def.tip && !save.tips.includes(id)) {
-    save.tips.push(id);
-    persist();
-    showDialog({ title: def.tip.title, text: def.tip.text, buttons: [{ label: 'Got it', primary: true, onClick: hideDialog }] });
+  } else {
+    const present = twistsIn(level);
+    const fresh = Object.keys(TIPS).filter((k) => present[k] && !tipSeen(k));
+    if (fresh.length) showTips(fresh);
   }
+}
+
+// Older saves remembered tips by level number rather than by twist.
+const OLD_TIP_LEVELS = { 14: 'locks', 15: 'ice', 36: 'topDocks', 37: 'stones', 38: 'links', 39: 'fog' };
+function tipSeen(key) {
+  return save.tips.includes(key) || Object.entries(OLD_TIP_LEVELS).some(([id, k]) => k === key && save.tips.includes(+id));
+}
+
+// Which twists a built level actually uses.
+function twistsIn(level) {
+  return {
+    locks: level.tiles.some((t) => t.lock),
+    ice: level.hp.some((h) => h > 1),
+    topDocks: level.topDocks > 0,
+    stones: level.stoneColor >= 0,
+    links: level.tiles.some((t) => t.link != null),
+    fog: level.fog.some(Boolean),
+  };
+}
+
+// Show one explainer after another.
+function showTips(keys) {
+  if (!keys.length) return hideDialog();
+  const [key, ...rest] = keys;
+  save.tips.push(key);
+  persist();
+  showDialog({ title: TIPS[key].title, text: TIPS[key].text, buttons: [{ label: rest.length ? 'Next' : 'Got it', primary: true, onClick: () => showTips(rest) }] });
 }
 
 function trackLocks() {
@@ -422,7 +449,8 @@ function fire(shots) {
   shots.forEach((s, n) => {
     const v = g.vis.get(s.tile);
     const to = beadCenter(s.cell);
-    const from = v ? { x: v.x, y: v.y - L.u * 0.08 } : L.docks[s.dock];
+    const top = dockSide(g.state, s.dock) === 'top';
+    const from = v ? { x: v.x, y: v.y + (top ? 0.08 : -0.08) * L.u } : L.docks[s.dock]; // body centre
     const aim = Math.atan2(to.y - from.y, to.x - from.x);
     const reach = L.u * 0.44;
     const shot = {
@@ -436,7 +464,7 @@ function fire(shots) {
     else g.pendingIce.add(s.cell);
     if (v) { v.aim = aim; v.recoil = 1; }
     if (s.done) {
-      g.departing.push({ tile: s.tile, t: -0.18, x: v ? v.x : from.x, y: v ? v.y : from.y, aim });
+      g.departing.push({ tile: s.tile, t: -0.18, x: v ? v.x : from.x, y: v ? v.y : from.y, aim, flip: top });
       g.vis.delete(s.tile);
       setTimeout(() => sfx.done(), 160);
     }
@@ -646,9 +674,10 @@ function draw() {
     const v = g.vis.get(d.tile);
     if (!v) return;
     const u = L.u * v.s * (1 + v.pop * 0.12);
-    drawTurret(ctx, v.x, v.y, u, g.level.hex[d.color], { count: d.count, aim: v.aim, recoil: v.recoil, blink: v.blink, hammer: d.color === g.level.stoneColor });
     const top = dockSide(g.state, i) === 'top';
-    if (!d.arriving && g.phase === 'play' && findTarget(g.state, i, d.color) < 0 && !g.shots.length) drawWaiting(v.x, v.y + (top ? 0.55 : -0.55) * u, u);
+    drawTurret(ctx, v.x, v.y, u, g.level.hex[d.color], { count: d.count, aim: v.aim, recoil: v.recoil, blink: v.blink, hammer: d.color === g.level.stoneColor, flip: top });
+    // the "waiting" bubble sits on the base plate side, away from the barrel
+    if (!d.arriving && g.phase === 'play' && findTarget(g.state, i, d.color) < 0 && !g.shots.length) drawWaiting(v.x, v.y - 0.55 * u, u);
   });
 
   // departing turrets hop off
@@ -659,7 +688,7 @@ function draw() {
     ctx.save();
     ctx.globalAlpha = Math.max(0, 1 - t * 2);
     const tile = g.level.tiles[d.tile];
-    drawTurret(ctx, d.x, d.y - t * 60, L.u * s, g.level.hex[tile.color], { aim: d.aim, count: 0, hammer: tile.color === g.level.stoneColor });
+    drawTurret(ctx, d.x, d.y - t * 60, L.u * s, g.level.hex[tile.color], { aim: d.aim, count: 0, hammer: tile.color === g.level.stoneColor, flip: d.flip });
     ctx.restore();
   }
 

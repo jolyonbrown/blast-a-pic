@@ -1,5 +1,6 @@
 import { TUNING } from './tuning.js';
 import { rng } from './engine.js';
+import { rocketRows, ringedPlanetRows, sleepyMoonRows, alienRows, ufoRows, astronautRows, shootingStarRows, earthRows, solarSystemRows, galaxyRows } from './art-space.js';
 
 // Level pictures. Each character is one bead (see PALETTE in engine.js):
 //   k liquorice  w snow  y sunshine  o tangerine  r cherry  p candyfloss
@@ -15,7 +16,8 @@ import { rng } from './engine.js';
 // stoneDepth keeps stones within that many beads of a column's end; hammerChunks: swings per hammer.
 // fog: chance a bead hides its colour until it's exposed.
 // links: chance neighbouring turrets in a row are chained together (they go out as a pair).
-// section / tip: menu heading, and a one-off explainer the first time the level is opened.
+// opensAfter: a section's first level opens once this level is done (instead of the one before it).
+// section: a menu heading. (Explainers for each twist are in TIPS below.)
 // dockOptions: slot counts the tuner may choose between (tools/tune-levels.mjs).
 
 function rainbowRows() {
@@ -413,6 +415,34 @@ function junoRows() {
   return g.rows();
 }
 
+// Explainers for each twist, shown the first time a level with it is opened.
+export const TIPS = {
+  locks: {
+    title: 'Locked turrets',
+    text: 'Turrets with a padlock can’t move yet. The number on the lock is how many other turrets you need to use first.',
+  },
+  ice: {
+    title: 'Frozen beads',
+    text: 'Icy beads need two hits: the first cracks the ice, the second pops the bead. Turrets carry enough ammo for both.',
+  },
+  topDocks: {
+    title: 'Slots up top',
+    text: 'There are slots above the picture now. Turrets up there fire downwards, so you can work on a column from either end. Tap a turret, then tap the slot you want.',
+  },
+  stones: {
+    title: 'Stones and hammers',
+    text: 'Some beads are hidden under stones. Only a grey hammer turret can smash a stone (from either end of a column, wherever it sits), and then the bead underneath needs its own colour as usual.',
+  },
+  links: {
+    title: 'Linked turrets',
+    text: 'Turrets joined by a chain go out together. Both need to be at the front, and you need two free slots on the same row.',
+  },
+  fog: {
+    title: 'Fog beads',
+    text: 'Grey beads with a “?” are hiding their colour. They show what they really are once they reach the top or bottom of their column.',
+  },
+};
+
 export const RAW_LEVELS = [
   {
     section: 'Warm-up',
@@ -653,10 +683,6 @@ export const RAW_LEVELS = [
     ],
   },
   {
-    tip: {
-      title: 'Locked turrets',
-      text: 'Turrets with a padlock can’t move yet. The number on the lock is how many other turrets you need to use first.',
-    },
     id: 14, name: 'Busy Bee', outline: 'k', mirror: 'even', columns: 4, chunks: [15, 20], noise: 3, mystery: 0.35, locks: 0.15, dockOptions: [5, 4],
     rows: [
       '......yyy',
@@ -677,10 +703,6 @@ export const RAW_LEVELS = [
     ],
   },
   {
-    tip: {
-      title: 'Frozen beads',
-      text: 'Icy beads need two hits: the first cracks the ice, the second pops the bead. Turrets carry enough ammo for both.',
-    },
     id: 15, name: 'Frosty', outline: 'k', mirror: 'even', columns: 4, chunks: [15, 20, 25], noise: 3, mystery: 0.35, locks: 0.1,
     ice: 0.35, iceColors: 'w', dockOptions: [4, 3],
     rows: [
@@ -981,10 +1003,6 @@ export const RAW_LEVELS = [
   // Slots above the picture too, stones and hammers. Starring Nelly.
   {
     section: 'Elite',
-    tip: {
-      title: 'Slots up top',
-      text: 'There are slots above the picture now. Turrets up there fire downwards, so you can work on a column from either end. Tap a turret, then tap the slot you want.',
-    },
     id: 36, name: 'Nelly', mirror: 'even', columns: 5, chunks: [20, 30, 40], noise: 6, mystery: 0.5, locks: 0.25, ice: 0.18,
     iceColors: 'cDn', topDocks: 2, dockOptions: [3],
     rows: [
@@ -1021,31 +1039,69 @@ export const RAW_LEVELS = [
     ],
   },
   {
-    tip: {
-      title: 'Stones and hammers',
-      text: 'Some beads are hidden under stones. Only a grey hammer turret can smash a stone (from either end of a column, wherever it sits), and then the bead underneath needs its own colour as usual.',
-    },
     id: 37, name: 'Nelly Looks Up', columns: 5, chunks: [30, 40], noise: 4, mystery: 0.3, locks: 0.1, ice: 0.12,
     iceColors: 'cD', stones: 0.04, stoneDepth: 3, hammerChunks: [3, 4], topDocks: 2, dockOptions: [5, 4],
     rows: nellyProfileRows,
   },
   {
-    tip: {
-      title: 'Linked turrets',
-      text: 'Turrets joined by a chain go out together. Both need to be at the front, and you need two free slots on the same row.',
-    },
     id: 38, name: 'Lana', columns: 5, chunks: [30, 40], noise: 5, mystery: 0.4, locks: 0.15, ice: 0.12,
     iceColors: 'gs', links: 0.15, topDocks: 2, dockOptions: [4, 3],
     rows: lanaRows,
   },
   {
-    tip: {
-      title: 'Fog beads',
-      text: 'Grey beads with a “?” are hiding their colour. They show what they really are once they reach the top or bottom of their column.',
-    },
     id: 39, name: 'Juno', columns: 5, chunks: [30, 40], noise: 6, mystery: 0.45, locks: 0.2, ice: 0.14,
     iceColors: 'yk', stones: 0.05, links: 0.12, fog: 0.18, topDocks: 2, dockOptions: [4, 3],
     rows: junoRows,
+  },
+
+  // ------------------------------------------------------------ Space
+  // Opens after the Warm-up. Starts gentle and works through every twist in
+  // turn, ending with the hardest. Pictures are in art-space.js.
+  {
+    section: 'Space', opensAfter: 12,
+    id: 40, name: 'Blast Off', outline: 'k', columns: 3, chunks: [10, 15], noise: 0.5,
+    rows: rocketRows,
+  },
+  {
+    id: 41, name: 'Ringed Planet', outline: 'k', columns: 4, chunks: [15, 20], noise: 1.5, mystery: 0.3,
+    rows: ringedPlanetRows,
+  },
+  {
+    id: 42, name: 'Sleepy Moon', outline: 'k', columns: 4, chunks: [15, 20], noise: 2, mystery: 0.3, locks: 0.15, dockOptions: [5, 4],
+    rows: sleepyMoonRows,
+  },
+  {
+    id: 43, name: 'Little Green Visitor', outline: 'k', columns: 4, chunks: [15, 20, 25], noise: 2.5, mystery: 0.35, locks: 0.15, ice: 0.15, dockOptions: [5, 4],
+    rows: alienRows,
+  },
+  {
+    id: 44, name: 'Flying Saucer', outline: 'k', columns: 5, chunks: [20, 30], noise: 2, mystery: 0.2, topDocks: 2, dockOptions: [5],
+    rows: ufoRows,
+  },
+  {
+    id: 45, name: 'Astronaut', outline: 'k', columns: 5, chunks: [20, 30], noise: 2.5, mystery: 0.25, locks: 0.08, ice: 0.08,
+    stones: 0.04, stoneDepth: 3, hammerChunks: [3, 4], topDocks: 2, dockOptions: [5],
+    rows: astronautRows,
+  },
+  {
+    id: 46, name: 'Shooting Star', columns: 5, chunks: [20, 30, 40], noise: 4, mystery: 0.4, locks: 0.15, ice: 0.12,
+    links: 0.15, topDocks: 2, dockOptions: [5, 4],
+    rows: shootingStarRows,
+  },
+  {
+    id: 47, name: 'Planet Earth', columns: 5, chunks: [20, 30], noise: 3, mystery: 0.3, locks: 0.1, ice: 0.08,
+    links: 0.12, fog: 0.15, dockOptions: [5, 4],
+    rows: earthRows,
+  },
+  {
+    id: 48, name: 'Solar System', columns: 5, chunks: [30, 40], noise: 5, mystery: 0.45, locks: 0.18, ice: 0.14,
+    stones: 0.04, stoneDepth: 3, hammerChunks: [3, 4], links: 0.12, fog: 0.15, topDocks: 2, dockOptions: [4, 3],
+    rows: solarSystemRows,
+  },
+  {
+    id: 49, name: 'Spiral Galaxy', columns: 5, chunks: [20, 30], noise: 4, mystery: 0.4, locks: 0.14, ice: 0.1,
+    stones: 0.04, stoneDepth: 3, hammerChunks: [3, 4], links: 0.12, fog: 0.15, topDocks: 2, dockOptions: [5],
+    rows: galaxyRows,
   },
 ];
 

@@ -8,7 +8,7 @@ they can see **from below**, so every column of the picture peels from the botto
 runs out of ammo it hops away and frees its slot. Fill every slot with turrets that can't see their
 colour and you're stuck. Undo as often as you like.
 
-There are three sets of pictures:
+There are five sets of pictures:
 
 - **Warm-up** (1–12) teaches the idea.
 - **Tricky** (13–24) has fewer slots, more "?" turrets, stripy pictures, **padlocked turrets**
@@ -16,12 +16,18 @@ There are three sets of pictures:
   need two hits.
 - **Expert** (25–34) is festive and fiendish, and gets harder with every picture. The later ones
   have full backgrounds, so every column of beads is deep.
-- **Elite** (36 onwards) adds **slots above the picture**: turrets up there fire downwards, so a
+- **Elite** (36–39) adds **slots above the picture**: turrets up there fire downwards, so a
   column can be opened from either end. When both rows have room, tap a turret to pick it up,
   then tap the glowing slot you want. Elite also has **stones**, which cover beads until a grey
   **hammer** turret smashes them (hammers reach either end of a column), and **linked turrets** chained in pairs that go out together.
   The last of them adds **fog beads**, lavender "?" beads that show their colour once they're
   uncovered. Starring Nelly, Lana and Juno.
+
+- **Space** (40–49) opens once the Warm-up is done. It's a self-contained set that starts gentle
+  and works through every twist in turn (rocket, planets, an alien, a flying saucer, an
+  astronaut, Earth, the solar system), ending with a fiendish spiral galaxy.
+
+Each twist has a short explainer that pops up the first time a level using it is opened.
 
 There's also a **secret level** on the About page (tap the mystery portrait). It's the hardest in
 the game. It's a bead portrait drawn by hand from a photo; the photo itself isn't in the repo.
@@ -95,11 +101,11 @@ Colours: `k` liquorice, `w` snow, `y` sunshine, `o` tangerine, `r` cherry, `p` c
 `v` violet, `b` ocean, `c` sky, `g` leaf, `G` forest, `n` cocoa, `t` biscuit, `s` pebble.
 `outline: 'k'` draws the dark border for you.
 
-Optional extras: `fog: 0.18` (chance a bead hides its colour until exposed), `links: 0.2` (chance neighbouring turrets are chained into pairs), `topDocks: 2` (slots above the picture), `stones: 0.08` (chance a bead is
+Optional extras: `opensAfter: 12` (a section's first level opens once that level is done), `fog: 0.18` (chance a bead hides its colour until exposed), `links: 0.2` (chance neighbouring turrets are chained into pairs), `topDocks: 2` (slots above the picture), `stones: 0.08` (chance a bead is
 covered by a stone; hammer turrets are added automatically), `secret: true` (left out of the picture grid; the About page opens it),
 `locks: 0.2` (chance a turret is padlocked), `ice: 0.15` (chance a bead is
 frozen; `iceColors: 'w'` limits it to certain colours), `section: 'Name'` (a heading in the
-menu), and `tip: { title, text }` (shown once, the first time the level is opened).
+menu). Explainers for each twist live in `TIPS` in `js/levels.js`.
 
 Then pick a solvable, suitably tricky tray layout and check everything:
 
