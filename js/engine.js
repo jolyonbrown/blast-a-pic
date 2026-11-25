@@ -11,6 +11,10 @@
 //  - linked turrets are chained in pairs: both must be at the front, and they go
 //    out together into two free slots on the same side
 //  - fog beads hide their colour until they're exposed (purely visual; the rules don't change)
+//  - side slots: turrets left and right of the picture fire sideways, peeling rows
+//  - clams open and shut every time a turret is sent out; a shut clam can't be hit
+//  - colour slots only take turrets of one colour
+//  - merging: a turret sent to a side that already has its colour in a slot joins it
 // Turrets sit in a small number of docks; each turret has a colour and an ammo
 // count and fires at the nearest exposed bead of its colour. When its ammo runs
 // out it leaves and frees the dock. Fill every dock with turrets that have
@@ -121,20 +125,28 @@ export function parseArt(def) {
 // A level, once built, is: picture + colours + turret tiles laid out in columns.
 // State is the mutable part of a play-through.
 
+// Slots can sit on up to four sides of the picture. Each side peels the picture
+// from its own edge: bottom and top slots work up and down the columns, left
+// and right slots work along the rows.
+export const SIDES = ['bottom', 'top', 'left', 'right'];
+
 export function newState(level) {
   const { W, H } = level;
-  const D = level.docks, T = level.topDocks || 0;
+  const D = level.docks, T = level.topDocks || 0, S = level.sideDocks || 0;
   const s = {
-    W, H, D, T,
+    W, H, D, T, S,
+    sides: SIDES.filter((side) => side === 'bottom' || (side === 'top' ? T > 0 : S > 0)),
     cells: Int8Array.from(level.cells),
     hp: Uint8Array.from(level.hp), // hits each bead still needs (2 = frozen)
     stone: Uint8Array.from(level.stone || new Uint8Array(W * H)), // 1 = covered by a stone
     bottom: new Int16Array(W).fill(-1), // row of the lowest bead in each column
     top: new Int16Array(W).fill(-1), // row of the highest bead in each column
+    left: new Int16Array(H).fill(-1), // column of the leftmost bead in each row
+    right: new Int16Array(H).fill(-1), // column of the rightmost bead in each row
     beadsLeft: 0,
-    placed: 0, // turrets sent to a slot so far (opens padlocks)
+    placed: 0, // turrets sent to a slot so far (opens padlocks, flips clams)
     colPos: new Array(level.columns.length).fill(0),
-    docks: new Array(D + T).fill(null), // bottom slots first, then top slots
+    docks: new Array(D + T + 2 * S).fill(null), // bottom slots first, then top, left, right
     level,
   };
   for (let i = 0; i < W * H; i++) if (s.cells[i] >= 0) s.beadsLeft++;
@@ -142,17 +154,24 @@ export function newState(level) {
     s.bottom[x] = lowestBead(s, x, H - 1);
     s.top[x] = highestBead(s, x, 0);
   }
+  for (let y = 0; y < H; y++) {
+    s.left[y] = nextInRow(s, y, 0, 1);
+    s.right[y] = nextInRow(s, y, W - 1, -1);
+  }
   return s;
 }
 
 export function cloneState(s) {
   return {
-    W: s.W, H: s.H, D: s.D, T: s.T,
+    W: s.W, H: s.H, D: s.D, T: s.T, S: s.S,
+    sides: s.sides,
     cells: Int8Array.from(s.cells),
     hp: Uint8Array.from(s.hp),
     stone: Uint8Array.from(s.stone),
     bottom: Int16Array.from(s.bottom),
     top: Int16Array.from(s.top),
+    left: Int16Array.from(s.left),
+    right: Int16Array.from(s.right),
     beadsLeft: s.beadsLeft,
     placed: s.placed,
     colPos: s.colPos.slice(),
@@ -171,14 +190,36 @@ function highestBead(s, x, fromY) {
   return -1;
 }
 
-export const dockSide = (s, d) => (d < s.D ? 'bottom' : 'top');
+function nextInRow(s, y, fromX, step) {
+  for (let x = fromX; x >= 0 && x < s.W; x += step) if (s.cells[y * s.W + x] >= 0) return x;
+  return -1;
+}
+
+// Which slots belong to a side: [first, last + 1).
+export function sideRange(s, side) {
+  const { D, T, S } = s;
+  if (side === 'bottom') return [0, D];
+  if (side === 'top') return [D, D + T];
+  if (side === 'left') return [D + T, D + T + S];
+  return [D + T + S, D + T + 2 * S];
+}
+
+export const dockSide = (s, d) => (d < s.D ? 'bottom' : d < s.D + s.T ? 'top' : d < s.D + s.T + s.S ? 'left' : 'right');
+
+// Clams open and shut every time a turret is sent out. A shut clam can't be hit,
+// so it blocks its column and row until it opens again.
+export function clamShut(s, i) {
+  const c = s.level.clam ? s.level.clam[i] : 0;
+  return c > 0 && (s.placed + c) % 2 === 0;
+}
 
 // Turrets below the picture can only hit a bead with nothing underneath it;
-// turrets above can only hit one with nothing on top of it.
+// turrets above can only hit one with nothing on top of it; side turrets only
+// the first bead in from their edge.
 export function isExposed(s, i) {
   if (s.cells[i] < 0) return false;
   const x = i % s.W, y = (i / s.W) | 0;
-  return s.bottom[x] === y || (s.T > 0 && s.top[x] === y);
+  return s.bottom[x] === y || (s.T > 0 && s.top[x] === y) || (s.S > 0 && (s.left[y] === x || s.right[y] === x));
 }
 
 function removeBead(s, i) {
@@ -187,49 +228,74 @@ function removeBead(s, i) {
   s.beadsLeft--;
   if (s.bottom[x] === y) s.bottom[x] = lowestBead(s, x, y - 1);
   if (s.top[x] === y) s.top[x] = highestBead(s, x, y + 1);
+  if (s.S > 0) {
+    if (s.left[y] === x) s.left[y] = nextInRow(s, y, x + 1, 1);
+    if (s.right[y] === x) s.right[y] = nextInRow(s, y, x - 1, -1);
+  }
 }
 
-// Where a dock "is" in grid coordinates (just below or above the picture) for targeting.
+// Where a dock "is" in grid coordinates (just outside the picture) for targeting.
 function dockPoint(s, d) {
-  if (d < s.D) return [((d + 0.5) / s.D) * s.W - 0.5, s.H + 1.5];
-  return [((d - s.D + 0.5) / s.T) * s.W - 0.5, -2.5];
+  const { D, T, S, W, H } = s;
+  if (d < D) return [((d + 0.5) / D) * W - 0.5, H + 1.5];
+  if (d < D + T) return [((d - D + 0.5) / T) * W - 0.5, -2.5];
+  if (d < D + T + S) return [-2.5, ((d - D - T + 0.5) / S) * H - 0.5];
+  return [W + 1.5, ((d - D - T - S + 0.5) / S) * H - 0.5];
 }
 
 // Can a turret of this colour hit bead i? Hammers only hit stones; colours
-// only hit uncovered beads of their own colour.
+// only hit uncovered beads of their own colour. Nothing gets into a shut clam.
 function hits(s, i, color) {
+  if (s.level.clam && clamShut(s, i)) return false;
   if (color === s.level.stoneColor) return s.stone[i] === 1;
   return s.cells[i] === color && !s.stone[i];
 }
 
 export function findTarget(s, d, color) {
   const [px, py] = dockPoint(s, d);
-  const { W } = s;
-  // Hammers lob over the picture: they can smash a stone at either end of a
-  // column, whichever row of slots they're in. Colours only reach their own end.
+  const { W, H } = s;
+  // Hammers lob over the picture: they can smash a stone at any open edge,
+  // whichever slot they're in. Colours only reach their own edge.
   const hammer = color === s.level.stoneColor;
-  const ends = hammer && s.T > 0 ? [s.bottom, s.top] : [d < s.D ? s.bottom : s.top];
+  const sides = hammer ? s.sides : [dockSide(s, d)];
   let best = -1, bestDist = Infinity;
-  for (const end of ends)
-    for (let x = 0; x < W; x++) {
-      const y = end[x];
-      if (y < 0 || !hits(s, y * W + x, color)) continue;
-      const dist = (x - px) ** 2 + (y - py) ** 2;
-      if (dist < bestDist) { bestDist = dist; best = y * W + x; }
+  for (const side of sides) {
+    if (side === 'bottom' || side === 'top') {
+      const end = side === 'bottom' ? s.bottom : s.top;
+      for (let x = 0; x < W; x++) {
+        const y = end[x];
+        if (y < 0 || !hits(s, y * W + x, color)) continue;
+        const dist = (x - px) ** 2 + (y - py) ** 2;
+        if (dist < bestDist) { bestDist = dist; best = y * W + x; }
+      }
+    } else {
+      const end = side === 'left' ? s.left : s.right;
+      for (let y = 0; y < H; y++) {
+        const x = end[y];
+        if (x < 0 || !hits(s, y * W + x, color)) continue;
+        const dist = (x - px) ** 2 + (y - py) ** 2;
+        if (dist < bestDist) { bestDist = dist; best = y * W + x; }
+      }
     }
+  }
   return best;
 }
 
 // How many beads of this colour the slots on one side could hit right now.
 export function exposedOnSide(s, color, side) {
-  if (color === s.level.stoneColor) return exposedCount(s, color); // hammers reach both ends
-  const ends = side === 'bottom' ? s.bottom : s.top;
+  if (color === s.level.stoneColor) return exposedCount(s, color); // hammers reach every edge
   let n = 0;
-  for (let x = 0; x < s.W; x++) if (ends[x] >= 0 && hits(s, ends[x] * s.W + x, color)) n++;
+  if (side === 'bottom' || side === 'top') {
+    const ends = side === 'bottom' ? s.bottom : s.top;
+    for (let x = 0; x < s.W; x++) if (ends[x] >= 0 && hits(s, ends[x] * s.W + x, color)) n++;
+  } else {
+    const ends = side === 'left' ? s.left : s.right;
+    for (let y = 0; y < s.H; y++) if (ends[y] >= 0 && hits(s, y * s.W + ends[y], color)) n++;
+  }
   return n;
 }
 
-// How many beads of this colour could be hit right now (from either side).
+// How many beads of this colour could be hit right now (from any side).
 export function exposedCount(s, color) {
   let n = 0;
   for (let x = 0; x < s.W; x++) {
@@ -238,12 +304,40 @@ export function exposedCount(s, color) {
     const t = s.top[x];
     if (s.T > 0 && t >= 0 && t !== y && hits(s, t * s.W + x, color)) n++;
   }
+  if (s.S > 0) {
+    const atColumnEnd = (x, y) => s.bottom[x] === y || (s.T > 0 && s.top[x] === y);
+    for (let y = 0; y < s.H; y++) {
+      const l = s.left[y], r = s.right[y];
+      if (l >= 0 && !atColumnEnd(l, y) && hits(s, y * s.W + l, color)) n++;
+      if (r >= 0 && r !== l && !atColumnEnd(r, y) && hits(s, y * s.W + r, color)) n++;
+    }
+  }
   return n;
 }
 
-export function firstFreeDock(s, side = 'bottom') {
-  const [from, to] = side === 'bottom' ? [0, s.D] : [s.D, s.D + s.T];
-  for (let d = from; d < to; d++) if (!s.docks[d]) return d;
+// Some slots only take turrets of one colour.
+export const dockColor = (s, d) => (s.level.dockColors ? s.level.dockColors[d] : -1);
+
+// The first free slot on a side that takes this colour. A turret uses its own
+// colour's slot if there's one free, so the ordinary slots stay open.
+export function firstFreeDock(s, side = 'bottom', color = -1, skip = -1) {
+  const [from, to] = sideRange(s, side);
+  let any = -1;
+  for (let d = from; d < to; d++) {
+    if (s.docks[d] || d === skip) continue;
+    const dc = dockColor(s, d);
+    if (dc >= 0 && dc === color) return d;
+    if (dc < 0 && any < 0) any = d;
+  }
+  return any;
+}
+
+// With merging on, a turret sent to a side that already has one of its colour
+// in a slot joins it instead of taking a slot of its own.
+export function mergeDock(s, side, color) {
+  if (!s.level.merge) return -1;
+  const [from, to] = sideRange(s, side);
+  for (let d = from; d < to; d++) if (s.docks[d] && s.docks[d].color === color) return d;
   return -1;
 }
 
@@ -251,10 +345,12 @@ const anyFreeDock = (s) => s.docks.includes(null);
 
 // The sides that currently have a free slot.
 export function freeSides(s) {
-  const sides = [];
-  if (firstFreeDock(s, 'bottom') >= 0) sides.push('bottom');
-  if (s.T > 0 && firstFreeDock(s, 'top') >= 0) sides.push('top');
-  return sides;
+  return s.sides.filter((side) => hasFree(s, side));
+}
+function hasFree(s, side) {
+  const [from, to] = sideRange(s, side);
+  for (let d = from; d < to; d++) if (!s.docks[d]) return true;
+  return false;
 }
 
 export function frontTile(s, col) {
@@ -283,38 +379,61 @@ export function canPlace(s, col) {
   return !!partner && lockLeft(s, partner) === 0;
 }
 
-const freeCount = (s, side) => {
-  const [from, to] = side === 'bottom' ? [0, s.D] : [s.D, s.D + s.T];
-  let n = 0;
-  for (let d = from; d < to; d++) if (!s.docks[d]) n++;
-  return n;
-};
+// The slots the front turret of a column (and its linked partner) would go to
+// on this side, or null if there's no room. `first` asks for a particular slot
+// for the turret itself (the one the player tapped); a merge always wins.
+export function docksFor(s, col, side, first = -1) {
+  const tile = frontTile(s, col);
+  if (!tile) return null;
+  if (first >= 0) {
+    if (dockSide(s, first) !== side) return null;
+    if (s.docks[first] || (dockColor(s, first) >= 0 && dockColor(s, first) !== tile.color)) first = -1; // not usable: fall back
+  }
+  if (tile.link == null) {
+    const m = mergeDock(s, side, tile.color);
+    if (m >= 0) return [m];
+    const d = first >= 0 ? first : firstFreeDock(s, side, tile.color);
+    return d >= 0 ? [d] : null;
+  }
+  const a = first >= 0 ? first : firstFreeDock(s, side, tile.color);
+  if (a < 0) return null;
+  const b = firstFreeDock(s, side, s.level.tiles[tile.link].color, a);
+  return b >= 0 ? [a, b] : null;
+}
 
 // The sides this column's front turret (and its partner, if linked) could go to.
 export function sidesFor(s, col) {
   if (!canPlace(s, col)) return [];
-  const need = frontTile(s, col).link == null ? 1 : 2;
-  return freeSides(s).filter((side) => freeCount(s, side) >= need);
+  return s.sides.filter((side) => docksFor(s, col, side) !== null);
 }
 
 // Move the front turret of a column into a dock. Returns the tile, or null.
 // A linked partner goes into the next free slot on the same side.
+// s.lastPlaced records where each turret went, and whether it merged.
 export function place(s, col, dock = firstFreeDock(s), arriving = false) {
   const tile = frontTile(s, col);
-  if (!tile || !canPlace(s, col) || dock < 0 || s.docks[dock]) return null;
-  const side = dockSide(s, dock);
-  if (tile.link != null && freeCount(s, side) < 2) return null;
-  s.colPos[col]++;
-  s.placed++;
-  s.docks[dock] = { tile: tile.id, color: tile.color, count: tile.count, arriving };
-  if (tile.link != null) {
-    const partner = s.level.tiles[tile.link];
-    const loc = s.level.tileLoc[partner.id];
-    s.colPos[loc.c]++;
+  if (!tile || !canPlace(s, col) || dock < 0) return null;
+  const ds = docksFor(s, col, dockSide(s, dock), dock);
+  if (!ds) return null;
+  const tiles = tile.link == null ? [tile] : [tile, s.level.tiles[tile.link]];
+  s.lastPlaced = [];
+  tiles.forEach((t, k) => {
+    s.colPos[s.level.tileLoc[t.id].c]++;
     s.placed++;
-    s.docks[firstFreeDock(s, side)] = { tile: partner.id, color: partner.color, count: partner.count, arriving };
-  }
+    const d = ds[k], cur = s.docks[d];
+    if (cur) {
+      cur.count += t.count;
+      cur.arriving = cur.arriving || arriving;
+    } else s.docks[d] = { tile: t.id, color: t.color, count: t.count, arriving };
+    s.lastPlaced.push({ tile: t.id, dock: d, merged: !!cur });
+  });
   return tile;
+}
+
+// Send the front turret of a column to a side, picking the slot for you.
+export function placeOn(s, col, side, arriving = false) {
+  const ds = docksFor(s, col, side);
+  return ds ? place(s, col, ds[0], arriving) : null;
 }
 
 // One round of fire: every ready turret takes one shot if it can.
@@ -347,16 +466,20 @@ export function canAnyFire(s) {
   return s.docks.some((d, i) => d && !d.arriving && findTarget(s, i, d.color) >= 0);
 }
 
-// Nothing can fire, and either every slot is full or every turret you could
-// send is still padlocked.
+// Nothing can fire, and no turret can be sent anywhere (slots full, padlocks,
+// or only colour slots for colours that aren't at the front).
 export function isStuck(s) {
   if (s.beadsLeft === 0 || s.docks.some((d) => d && d.arriving) || canAnyFire(s)) return false;
-  if (!anyFreeDock(s)) return true;
+  if (!anyFreeDock(s) && !s.level.merge) return true;
   return !s.level.columns.some((_, c) => sidesFor(s, c).length > 0);
 }
 
+// Why you're stuck: 'full' (no room), 'locked' (the turrets you'd send are
+// padlocked) or 'blocked' (slots free, but nothing at the front can use them).
 export function stuckReason(s) {
-  return anyFreeDock(s) ? 'locked' : 'full';
+  if (!anyFreeDock(s)) return 'full';
+  if (s.level.columns.some((_, c) => frontTile(s, c) && lockLeft(s, frontTile(s, c)) > 0)) return 'locked';
+  return s.level.columns.some((_, c) => frontTile(s, c)) ? 'blocked' : 'full';
 }
 
 export function trayEmpty(s) {
@@ -372,7 +495,7 @@ function hashBoard(s) {
 }
 
 // Depth-first search over "send a front turret to a side, then wait until things settle".
-// Moves are { c: column, side: 'bottom' | 'top' }.
+// Moves are { c: column, side: 'bottom' | 'top' | 'left' | 'right' }.
 // Returns { solved, moves, nodes } or { solved: false, aborted: true } past budget.
 export function solve(start, budget = 30000) {
   const seen = new Set();
@@ -386,10 +509,8 @@ export function solve(start, budget = 30000) {
     const key = s.colPos.join(',') + '|' + s.docks.map((d) => (d ? d.color + ':' + d.count : '-')).join(',') + '|' + hashBoard(s);
     if (seen.has(key)) return false;
     seen.add(key);
-    const sides = freeSides(s);
-    if (!sides.length) return false;
     const cands = [];
-    for (const side of sides) {
+    for (const side of s.sides) {
       const sigs = new Set();
       for (let c = 0; c < s.level.columns.length; c++) {
         const tile = frontTile(s, c);
@@ -405,7 +526,7 @@ export function solve(start, budget = 30000) {
     cands.sort((a, b) => b.score - a.score);
     for (const { c, side } of cands) {
       const s2 = cloneState(s);
-      place(s2, c, firstFreeDock(s2, side));
+      placeOn(s2, c, side);
       settle(s2);
       if (isStuck(s2)) continue;
       moves.push({ c, side });
@@ -437,6 +558,16 @@ function peelLayers(level) {
       k = Math.ceil(k / 2);
     }
     depth = Math.max(depth, k);
+  }
+  // Side slots: a bead is only as deep as it is from the nearest open edge.
+  if (level.sideDocks) {
+    for (let y = 0; y < H; y++) {
+      let l = 0, r = 0;
+      for (let x = 0; x < W; x++) if (cells[y * W + x] >= 0) { layer[y * W + x] = Math.min(layer[y * W + x], l); l++; }
+      for (let x = W - 1; x >= 0; x--) if (cells[y * W + x] >= 0) { layer[y * W + x] = Math.min(layer[y * W + x], r); r++; }
+    }
+    depth = 0;
+    for (const v of layer) depth = Math.max(depth, v + 1);
   }
   return { layer, depth };
 }
@@ -491,7 +622,7 @@ export function buildLevel(def) {
   let stoneColor = -1;
   if (def.stones) {
     const stoneRand = rng(def.id * 5113 + 7);
-    const { layer: depthOf } = peelLayers({ W: art.W, H: art.H, cells, topDocks: def.topDocks ?? 0 });
+    const { layer: depthOf } = peelLayers({ W: art.W, H: art.H, cells, topDocks: def.topDocks ?? 0, sideDocks: def.sideDocks ?? 0 });
     const maxDepth = def.stoneDepth ?? Infinity;
     for (let i = 0; i < cells.length; i++)
       if (cells[i] >= 0 && hp[i] === 1 && colors[cells[i]] !== def.outline && depthOf[i] <= maxDepth && stoneRand() < def.stones) stone[i] = 1;
@@ -503,11 +634,33 @@ export function buildLevel(def) {
     const fogRand = rng(def.id * 3331 + 11);
     for (let i = 0; i < cells.length; i++) if (cells[i] >= 0 && fogRand() < def.fog) fog[i] = 1;
   }
+  const docks = def.docks ?? 5, topDocks = def.topDocks ?? 0, sideDocks = def.sideDocks ?? 0;
+  // Clams: beads in a shell that opens and shuts each time a turret is sent out.
+  // Half start open, half shut. Never on ice, stones or the outline.
+  let clam = null;
+  if (def.clams) {
+    clam = new Uint8Array(art.W * art.H);
+    const clamRand = rng(def.id * 9173 + 5);
+    for (let i = 0; i < cells.length; i++)
+      if (cells[i] >= 0 && hp[i] === 1 && !stone[i] && colors[cells[i]] !== def.outline && clamRand() < def.clams) clam[i] = clamRand() < 0.5 ? 1 : 2;
+  }
+  // Colour slots: the right-hand bottom slots only take one colour each (the
+  // picture's most common colours, so they're useful but awkward).
+  let dockColors = null;
+  if (def.colourSlots) {
+    dockColors = new Int8Array(docks + topDocks + 2 * sideDocks).fill(-1);
+    const counts = colors.map((ch, ci) => [ci, ci === stoneColor || ch === def.outline ? -1 : cells.filter((c) => c === ci).length]);
+    counts.sort((a, b) => b[1] - a[1]);
+    for (let k = 0; k < def.colourSlots; k++) dockColors[docks - 1 - k] = counts[k][0];
+  }
   const base = {
     id: def.id, name: def.name, W: art.W, H: art.H, cells, hp, colors, stone, stoneColor, fog,
-    docks: def.docks ?? 5,
-    topDocks: def.topDocks ?? 0,
+    docks, topDocks,
   };
+  if (sideDocks) base.sideDocks = sideDocks;
+  if (clam) base.clam = clam;
+  if (dockColors) base.dockColors = dockColors;
+  if (def.merge) base.merge = true;
   const { layer, depth } = peelLayers(base);
   const ncols = def.columns ?? 4;
 
