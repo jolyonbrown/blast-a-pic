@@ -31,7 +31,7 @@ const builtLevels = new Map();
 function getLevel(id) {
   if (!builtLevels.has(id)) {
     const def = LEVELS.find((l) => l.id === id);
-    const level = buildLevel(def);
+    const level = buildLevel(def, { trusted: true }); // tuned layouts are checked by tools/check-levels.mjs
     level.hex = level.colors.map((k) => PALETTE[k].hex);
     builtLevels.set(id, level);
   }

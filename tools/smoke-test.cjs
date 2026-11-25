@@ -28,7 +28,10 @@ const out = process.argv[2];
     for (const id of levels) {
       await page.evaluate((id) => window.__blast.startLevel(id), id);
       await page.waitForTimeout(400);
-      const moves = await page.evaluate(() => window.__blast.game.level.solution);
+      const moves = await page.evaluate(() => {
+        const { solve, newState } = window.__blast.engine;
+        return solve(newState(window.__blast.game.level)).moves;
+      });
       for (const c of moves) {
         // Like a patient player: wait until the turrets have finished what they can do.
         await page.waitForFunction(() => window.__blast.idle || window.__blast.game.phase !== 'play');

@@ -602,8 +602,10 @@ export function pictureOf(def) {
 }
 
 // Build a playable level from its definition. Tries seeds until the solver
-// confirms it can be beaten.
-export function buildLevel(def) {
+// confirms it can be beaten. With { trusted: true } and a tuned layout (def.attempt),
+// it skips the solver: tools/check-levels.mjs has already proved that layout can be
+// beaten, and solving the biggest levels can take a second or two on an iPad.
+export function buildLevel(def, { trusted = false } = {}) {
   const art = pictureOf(def);
   const { colors, cells } = art;
   // Frozen beads: a fixed sprinkling per picture (doesn't change with the tray layout).
@@ -711,6 +713,7 @@ export function buildLevel(def) {
     const level = { ...base, tiles, columns, attempt };
     level.tileLoc = [];
     columns.forEach((col, c) => col.forEach((id, k) => (level.tileLoc[id] = { c, k })));
+    if (trusted && def.attempt != null) return { ...level, solution: null };
     const result = solve(newState(level));
     if (result.solved) return { ...level, solution: result.moves };
   }
