@@ -8,7 +8,7 @@ they can see **from below**, so every column of the picture peels from the botto
 runs out of ammo it hops away and frees its slot. Fill every slot with turrets that can't see their
 colour and you're stuck. Undo as often as you like.
 
-There are three sets of pictures:
+There are five sets of pictures:
 
 - **Warm-up** (1–12) teaches the idea.
 - **Tricky** (13–24) has fewer slots, more "?" turrets, stripy pictures, **padlocked turrets**
@@ -16,7 +16,7 @@ There are three sets of pictures:
   need two hits.
 - **Expert** (25–34) is festive and fiendish, and gets harder with every picture. The later ones
   have full backgrounds, so every column of beads is deep.
-- **Elite** (36 onwards) adds **slots above the picture**: turrets up there fire downwards, so a
+- **Elite** (36–39) adds **slots above the picture**: turrets up there fire downwards, so a
   column can be opened from either end. When both rows have room, tap a turret to pick it up,
   then tap the glowing slot you want. Elite also has **stones**, which cover beads until a grey
   **hammer** turret smashes them (hammers reach either end of a column), and **linked turrets** chained in pairs that go out together.
