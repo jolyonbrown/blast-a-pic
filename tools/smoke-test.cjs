@@ -24,11 +24,16 @@ const out = process.argv[2];
     await page.evaluate(() => localStorage.setItem('blast-a-pic:v1', JSON.stringify({ seenHelp: true, speed: 3, done: [], tips: Array.from({ length: 100 }, (_, i) => i + 1) })));
     await page.reload();
 
-    const levels = name === 'ipad-portrait' ? await page.evaluate(() => window.__blast.levelIds) : [1];
+    const only = (process.env.LEVELS || '').split(',').filter(Boolean).map(Number); // e.g. LEVELS=50,51
+    const levels = name === 'ipad-portrait' ? (only.length ? only : await page.evaluate(() => window.__blast.levelIds)) : [1];
     for (const id of levels) {
       await page.evaluate((id) => window.__blast.startLevel(id), id);
       await page.waitForTimeout(400);
-      const moves = await page.evaluate(() => window.__blast.game.level.solution);
+      await page.evaluate(() => document.getElementById('dialog').classList.add('hidden')); // any first-time tip
+      const moves = await page.evaluate(() => {
+        const { solve, newState } = window.__blast.engine;
+        return solve(newState(window.__blast.game.level)).moves;
+      });
       for (const c of moves) {
         // Like a patient player: wait until the turrets have finished what they can do.
         await page.waitForFunction(() => window.__blast.idle || window.__blast.game.phase !== 'play');

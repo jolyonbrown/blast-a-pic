@@ -25,6 +25,11 @@ function expertGoal(def, idx) {
     const i = def.id - 40;
     return { random: Math.max(0, 70 - i * 8), greedyMax: i < 4 ? 100 : 60 - i * 4, smart: 90 - i * 7.5, smartMin: 15 };
   }
+  // Fiendish (50-59): harder than anything before, ending properly fiendish.
+  if (def.id >= 50 && def.id <= 59) {
+    const i = def.id - 50;
+    return { random: 0, greedyMax: 10, smart: 30 - i * 2.3, smartMin: 6 };
+  }
   // Elite (36-39): each new idea arrives a little gentler, then the screw tightens.
   if (def.id >= 36) return { random: 2, greedyMax: 20, smart: 38 - (def.id - 36) * 2.5, smartMin: 15 };
   const i = idx - 24;

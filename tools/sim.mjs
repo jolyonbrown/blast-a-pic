@@ -1,5 +1,5 @@
 // Simulated players, used to measure how hard a level is.
-import { newState, cloneState, place, settle, isStuck, rng, frontTile, sidesFor, firstFreeDock, freeSides, exposedOnSide } from '../js/engine.js';
+import { newState, cloneState, placeOn, settle, isStuck, rng, frontTile, sidesFor, exposedOnSide } from '../js/engine.js';
 
 // mode 'random': taps any front turret (and picks a side at random when there are slots above too).
 // mode 'greedy': taps the colour with most beads showing on that side.
@@ -14,7 +14,7 @@ export function winRate(level, mode, trials = 200, seed = 1234) {
     const s = newState(level);
     while (s.beadsLeft > 0) {
       const opts = [];
-      for (const side of freeSides(s))
+      for (const side of s.sides)
         for (let c = 0; c < level.columns.length; c++) if (sidesFor(s, c).includes(side)) opts.push({ c, side });
       if (!opts.length) break;
       let pick;
@@ -23,7 +23,7 @@ export function winRate(level, mode, trials = 200, seed = 1234) {
         let best = -Infinity;
         for (const o of opts) {
           const s2 = cloneState(s);
-          place(s2, o.c, firstFreeDock(s2, o.side));
+          placeOn(s2, o.c, o.side);
           settle(s2);
           // progress = beads popped, plus stones smashed (a person knows that unblocks a column)
           const smashed = stonesLeft(s) - stonesLeft(s2);
@@ -31,7 +31,7 @@ export function winRate(level, mode, trials = 200, seed = 1234) {
           if (score > best) { best = score; pick = o; }
         }
       } else pick = opts.map((o) => [exposedOnSide(s, frontTile(s, o.c).color, o.side) + rand(), o]).sort((a, b) => b[0] - a[0])[0][1];
-      place(s, pick.c, firstFreeDock(s, pick.side));
+      placeOn(s, pick.c, pick.side);
       settle(s);
       if (isStuck(s)) break;
     }

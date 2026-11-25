@@ -95,6 +95,8 @@ button { font-family: inherit; color: inherit; cursor: pointer; }
 .level-card .name { font-weight: 800; font-size: 15px; text-align: center; line-height: 1.2; }
 .level-card .num { font-size: 13px; font-weight: 700; color: var(--ink-soft); }
 .level-card.done .num { color: #2e9a5a; }
+.level-card.gold .num { color: #d99a00; }
+.level-card.gold { box-shadow: 0 0 0 3px #ffd23f inset, 0 4px 0 rgba(150, 105, 60, 0.18), 0 10px 24px rgba(150, 105, 60, 0.12); }
 .level-card.locked { opacity: 0.55; }
 .level-card.next { outline: 3px solid var(--accent-2); outline-offset: 2px; }
 

@@ -150,6 +150,65 @@ export function stoneSprite(size) {
 }
 
 // A fog bead: a lavender bead with a "?" until its real colour is revealed.
+// Clams: shut, a pink scallop shell covers the bead (the game draws a dot of the
+// bead's colour on it); open, the bead sits in a pink rim with a little hinge.
+export function clamSprite(size, shut) {
+  const px = Math.max(4, Math.round(size));
+  const key = (shut ? 'clamShut' : 'clamOpen') + px;
+  if (beadCache.has(key)) return beadCache.get(key);
+  const c = document.createElement('canvas');
+  c.width = c.height = px;
+  const g = c.getContext('2d');
+  const hx = px / 2, hy = px * 0.86; // the hinge
+  g.lineJoin = 'round';
+  if (shut) {
+    const r = px * 0.74, a0 = Math.PI * 1.2, a1 = Math.PI * 1.8;
+    g.beginPath();
+    g.moveTo(hx, hy);
+    // scalloped edge
+    const n = 5;
+    for (let k = 0; k <= n; k++) {
+      const a = a0 + ((a1 - a0) * k) / n;
+      const x = hx + Math.cos(a) * r, y = hy + Math.sin(a) * r;
+      if (k === 0) g.lineTo(x, y);
+      else {
+        const am = a0 + ((a1 - a0) * (k - 0.5)) / n;
+        g.quadraticCurveTo(hx + Math.cos(am) * r * 1.1, hy + Math.sin(am) * r * 1.1, x, y);
+      }
+    }
+    g.closePath();
+    const grad = g.createLinearGradient(0, 0, 0, px);
+    grad.addColorStop(0, '#ffe3ea');
+    grad.addColorStop(1, '#f2a7b8');
+    g.fillStyle = grad;
+    g.fill();
+    g.strokeStyle = '#c96f86';
+    g.lineWidth = Math.max(1, px * 0.06);
+    g.stroke();
+    g.strokeStyle = 'rgba(201,111,134,0.55)';
+    g.lineWidth = Math.max(1, px * 0.04);
+    for (let k = 1; k < n; k++) {
+      const a = a0 + ((a1 - a0) * k) / n;
+      g.beginPath();
+      g.moveTo(hx, hy);
+      g.lineTo(hx + Math.cos(a) * r * 0.95, hy + Math.sin(a) * r * 0.95);
+      g.stroke();
+    }
+  } else {
+    g.strokeStyle = '#e38aa0';
+    g.lineWidth = Math.max(1, px * 0.1);
+    g.beginPath();
+    g.arc(px / 2, px / 2, px * 0.44, 0, Math.PI * 2);
+    g.stroke();
+  }
+  // hinge
+  g.fillStyle = '#c96f86';
+  roundRect(g, hx - px * 0.14, hy - px * 0.04, px * 0.28, px * 0.12, px * 0.04);
+  g.fill();
+  beadCache.set(key, c);
+  return c;
+}
+
 export function fogSprite(size) {
   const px = Math.max(4, Math.round(size));
   const key = 'fog' + px;

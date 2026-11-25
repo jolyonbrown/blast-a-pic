@@ -1,6 +1,7 @@
 import { TUNING } from './tuning.js';
 import { rng } from './engine.js';
 import { rocketRows, ringedPlanetRows, sleepyMoonRows, alienRows, ufoRows, astronautRows, shootingStarRows, earthRows, solarSystemRows, galaxyRows } from './art-space.js';
+import { clownfishRows, seahorseRows, jellyfishRows, octopusRows, pufferfishRows, turtleRows, whaleRows, treasureRows, reefRows, anglerfishRows } from './art-sea.js';
 
 // Level pictures. Each character is one bead (see PALETTE in engine.js):
 //   k liquorice  w snow  y sunshine  o tangerine  r cherry  p candyfloss
@@ -16,6 +17,10 @@ import { rocketRows, ringedPlanetRows, sleepyMoonRows, alienRows, ufoRows, astro
 // stoneDepth keeps stones within that many beads of a column's end; hammerChunks: swings per hammer.
 // fog: chance a bead hides its colour until it's exposed.
 // links: chance neighbouring turrets in a row are chained together (they go out as a pair).
+// sideDocks: slots on each side of the picture (they fire sideways, peeling rows).
+// clams: chance a bead is in a clam that opens and shuts each time a turret is sent out.
+// colourSlots: how many bottom slots only take one colour. merge: a turret joins a
+// same-coloured one already in a slot on that side instead of taking a slot.
 // opensAfter: a section's first level opens once this level is done (instead of the one before it).
 // section: a menu heading. (Explainers for each twist are in TIPS below.)
 // dockOptions: slot counts the tuner may choose between (tools/tune-levels.mjs).
@@ -439,7 +444,23 @@ export const TIPS = {
   },
   fog: {
     title: 'Fog beads',
-    text: 'Grey beads with a “?” are hiding their colour. They show what they really are once they reach the top or bottom of their column.',
+    text: 'Lavender beads with a “?” are hiding their colour. They show what they really are once nothing’s in front of them.',
+  },
+  sides: {
+    title: 'Slots at the sides',
+    text: 'Now there are slots to the left and right of the picture too. Turrets there fire sideways, so they peel the picture row by row from the edge. Tap a turret, then tap the slot you want.',
+  },
+  clams: {
+    title: 'Clams',
+    text: 'Pink clams open and shut every time you send out a turret. Nothing can hit a shut clam, and it blocks the beads behind it, so time it right. The dot on a shut clam shows its colour.',
+  },
+  colourSlots: {
+    title: 'Colour slots',
+    text: 'A slot with a coloured dotted ring only takes turrets of that colour. Turrets go there first when they can, keeping the ordinary slots free.',
+  },
+  merge: {
+    title: 'Merging',
+    text: 'Good news! Send a turret to a row that already has one of its colour in a slot and they join up, so it doesn’t take a slot of its own.',
   },
 };
 
@@ -1102,6 +1123,59 @@ export const RAW_LEVELS = [
     id: 49, name: 'Spiral Galaxy', columns: 5, chunks: [20, 30], noise: 4, mystery: 0.4, locks: 0.14, ice: 0.1,
     stones: 0.04, stoneDepth: 3, hammerChunks: [3, 4], links: 0.12, fog: 0.15, topDocks: 2, dockOptions: [5],
     rows: galaxyRows,
+  },
+  // Fiendish: under the sea. Slots at the sides, clams, colour slots, and merging
+  // to help out; each arrives on its own, then they pile up.
+  {
+    section: 'Fiendish',
+    id: 50, name: 'Clownfish', columns: 4, chunks: [15, 20], noise: 2, mystery: 0.25, sideDocks: 1, dockOptions: [4],
+    rows: clownfishRows,
+  },
+  {
+    id: 51, name: 'Seahorse', columns: 4, chunks: [15, 20], noise: 2.5, mystery: 0.3, sideDocks: 1, clams: 0.12, dockOptions: [4],
+    rows: seahorseRows,
+  },
+  {
+    id: 52, name: 'Jellyfish', columns: 4, chunks: [15, 20], noise: 3, mystery: 0.3, locks: 0.1, sideDocks: 1, clams: 0.1,
+    colourSlots: 1, dockOptions: [5, 4],
+    rows: jellyfishRows,
+  },
+  {
+    id: 53, name: 'Octopus', columns: 5, chunks: [15, 20, 25], noise: 3.5, mystery: 0.35, locks: 0.12, ice: 0.1, sideDocks: 1,
+    clams: 0.12, colourSlots: 1, merge: true, dockOptions: [4, 3],
+    rows: octopusRows,
+  },
+  {
+    id: 54, name: 'Pufferfish', columns: 5, chunks: [15, 20, 25], noise: 3, mystery: 0.3, locks: 0.1, ice: 0.08, sideDocks: 1,
+    clams: 0.1, colourSlots: 1, merge: true, dockOptions: [5, 4],
+    rows: pufferfishRows,
+  },
+  {
+    id: 55, name: 'Sea Turtle', columns: 5, chunks: [15, 20, 25], noise: 3, mystery: 0.3, locks: 0.1, ice: 0.08, links: 0.1,
+    sideDocks: 1, clams: 0.1, colourSlots: 1, merge: true, dockOptions: [5, 4],
+    rows: turtleRows,
+  },
+  {
+    id: 56, name: 'Whale', columns: 5, chunks: [15, 20, 25], noise: 3, mystery: 0.3, locks: 0.1, ice: 0.08, fog: 0.1,
+    topDocks: 2, sideDocks: 1, clams: 0.1, colourSlots: 1, merge: true, dockOptions: [5, 4],
+    rows: whaleRows,
+  },
+  {
+    id: 57, name: 'Treasure Chest', columns: 5, chunks: [15, 20, 25], noise: 3.5, mystery: 0.35, locks: 0.12, ice: 0.08,
+    stones: 0.04, stoneDepth: 3, hammerChunks: [3, 4], sideDocks: 1, clams: 0.1, colourSlots: 1, merge: true, dockOptions: [5, 4],
+    rows: treasureRows,
+  },
+  {
+    id: 58, name: 'Coral Reef', columns: 5, chunks: [15, 20, 25], noise: 3.5, mystery: 0.35, locks: 0.12, ice: 0.1, links: 0.1,
+    fog: 0.1, stones: 0.04, stoneDepth: 3, hammerChunks: [3, 4], topDocks: 2, sideDocks: 1, clams: 0.12, colourSlots: 1,
+    merge: true, dockOptions: [5, 4],
+    rows: reefRows,
+  },
+  {
+    id: 59, name: 'Anglerfish', columns: 5, chunks: [15, 20, 25], noise: 4, mystery: 0.4, locks: 0.14, ice: 0.1, links: 0.1,
+    fog: 0.12, stones: 0.04, stoneDepth: 3, hammerChunks: [3, 4], topDocks: 2, sideDocks: 1, clams: 0.12, colourSlots: 2,
+    merge: true, dockOptions: [5, 4],
+    rows: anglerfishRows,
   },
 ];
 
