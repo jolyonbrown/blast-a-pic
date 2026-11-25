@@ -200,7 +200,8 @@ export function solarSystemRows() {
 // 49: a spiral galaxy, glowing in the dark.
 export function galaxyRows() {
   const W = 30, H = 30, g = grid(W, H), cx = 14.5, cy = 14.5;
-  starry(g, W, H, 'k', 4901, 0.05);
+  // Plain black: lone stars buried in deep columns jam the slots.
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) g.set(x, y, 'k');
   for (let y = 0; y < H; y++)
     for (let x = 0; x < W; x++) {
       const dx = x - cx, dy = (y - cy) * 1.15;
