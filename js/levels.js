@@ -1099,8 +1099,8 @@ export const RAW_LEVELS = [
     rows: solarSystemRows,
   },
   {
-    id: 49, name: 'Spiral Galaxy', columns: 5, chunks: [20, 30], noise: 5, mystery: 0.5, locks: 0.2, ice: 0.15,
-    stones: 0.04, stoneDepth: 3, hammerChunks: [3, 4], links: 0.12, fog: 0.18, topDocks: 2, dockOptions: [5, 4],
+    id: 49, name: 'Spiral Galaxy', columns: 5, chunks: [20, 30], noise: 4, mystery: 0.4, locks: 0.14, ice: 0.1,
+    stones: 0.04, stoneDepth: 3, hammerChunks: [3, 4], links: 0.12, fog: 0.15, topDocks: 2, dockOptions: [5, 4],
     rows: galaxyRows,
   },
 ];
