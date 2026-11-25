@@ -64,6 +64,22 @@ menu, never in the middle of a level. Progress is kept.
 It's designed for portrait. Landscape still works if the iPad gets turned, because a web app can't
 force iPadOS to stay in portrait.
 
+### Publishing on itch.io
+
+```sh
+sh tools/package-itch.sh   # makes dist/blast-a-pic-<version>.zip with just the game
+```
+
+On itch.io: **Create new project**, Kind of project **HTML**, upload the zip and tick *This file
+will be played in the browser*. Under *Embed options*, set the viewport to **540 × 960**, tick
+**Mobile friendly** (orientation: portrait) and **Fullscreen button**, and choose
+**Click to launch** so sound starts properly on phones and iPads. To update it, upload a
+new zip and delete the old one.
+
+On itch the game runs in a frame on itch's own domain, so it skips the offline/update service
+worker (that's only for the copy on our own site). Progress is saved per site, so itch players
+start fresh, separately from the Home Screen version.
+
 ## Running it locally
 
 ```sh
@@ -87,7 +103,7 @@ best kept for quick testing.
 | `js/levels.js` | **The pictures**: edit or add levels here |
 | `js/tuning.js` | Generated: which tray layout each level uses |
 | `sw.js`, `manifest.webmanifest`, `icons/` | Home Screen / offline support |
-| `tools/` | Level checking, difficulty tuning, smoke test, icon generator |
+| `tools/` | Level checking, difficulty tuning, smoke test, icon generator, itch.io packaging |
 
 ## Adding a picture
 
