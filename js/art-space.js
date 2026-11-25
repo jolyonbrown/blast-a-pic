@@ -161,7 +161,8 @@ export function shootingStarRows() {
 // 47: planet Earth hanging in space, with clouds.
 export function earthRows() {
   const W = 28, H = 28, g = grid(W, H), cx = 13.5, cy = 13.5;
-  starry(g, W, H, 'k', 4701, 0.05);
+  // Plain black: stars buried in the dark corners made the level far too hard.
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) g.set(x, y, 'k');
   const rand = rng(4702);
   const blobs = Array.from({ length: 9 }, () => [cx - 8 + rand() * 16, cy - 8 + rand() * 16, 1.8 + rand() * 2.6]);
   const clouds = Array.from({ length: 6 }, () => [cx - 9 + rand() * 18, cy - 9 + rand() * 18, 2.5 + rand() * 2, 0.7 + rand() * 0.5]);
@@ -170,7 +171,8 @@ export function earthRows() {
       const d = Math.hypot(x - cx, y - cy);
       if (d > 11.2) continue;
       let ch = 'b';
-      if (blobs.some(([bx, by, r]) => Math.hypot(x - bx, y - by) < r)) ch = (x + y) % 5 === 0 ? 'G' : 'g';
+      const land = blobs.findIndex(([bx, by, r]) => Math.hypot(x - bx, y - by) < r);
+      if (land >= 0) ch = land % 3 === 0 ? 'G' : 'g'; // forests and grassland
       if (clouds.some(([bx, by, rx, ry]) => inEllipse(x, y, bx, by, rx, ry))) ch = 'w';
       if (d > 10.4) ch = 'c'; // a thin glow of atmosphere
       g.set(x, y, ch);
