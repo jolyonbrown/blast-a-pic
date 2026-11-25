@@ -1152,7 +1152,11 @@ let updateReady = false;
 function applyUpdateIfIdle() {
   if (updateReady && $('play').classList.contains('hidden') && $('dialog').classList.contains('hidden')) location.reload();
 }
-if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
+// Offline mode and these updates are for the copy on our own site. Elsewhere,
+// e.g. on itch.io, which runs games in a frame on its own domain, they're skipped.
+const framed = (() => { try { return window.self !== window.top; } catch { return true; } })();
+const onItch = /(^|\.)itch\.(io|zone)$/.test(location.hostname);
+if ('serviceWorker' in navigator && !framed && !onItch && (location.protocol === 'https:' || location.hostname === 'localhost')) {
   const hadController = !!navigator.serviceWorker.controller;
   navigator.serviceWorker.register('sw.js').then((reg) => {
     document.addEventListener('visibilitychange', () => {
