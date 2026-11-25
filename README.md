@@ -8,7 +8,7 @@ they can see **from below**, so every column of the picture peels from the botto
 runs out of ammo it hops away and frees its slot. Fill every slot with turrets that can't see their
 colour and you're stuck. Undo as often as you like.
 
-There are five sets of pictures:
+There are six sets of pictures:
 
 - **Warm-up** (1–12) teaches the idea.
 - **Tricky** (13–24) has fewer slots, more "?" turrets, stripy pictures, **padlocked turrets**
@@ -27,7 +27,15 @@ There are five sets of pictures:
   and works through every twist in turn (rocket, planets, an alien, a flying saucer, an
   astronaut, Earth, the solar system), ending with a fiendish spiral galaxy.
 
+- **Fiendish** (50–59) opens once Space is done: under the sea, and properly hard. It adds
+  **slots at the sides** that fire sideways and peel the picture row by row, pink **clams** that
+  open and shut every time a turret is sent out (a shut clam can't be hit), **colour slots** that
+  only take one colour, and, to help out, **merging**: a turret sent to a row of slots that already
+  has its colour joins that turret instead of taking a slot.
+
 Each twist has a short explainer that pops up the first time a level using it is opened.
+
+Finish any picture without using undo and it earns a **gold star** on the menu.
 
 There's also a **secret level** on the About page (tap the mystery portrait). It's the hardest in
 the game. It's a bead portrait drawn by hand from a photo; the photo itself isn't in the repo.
@@ -101,7 +109,9 @@ Colours: `k` liquorice, `w` snow, `y` sunshine, `o` tangerine, `r` cherry, `p` c
 `v` violet, `b` ocean, `c` sky, `g` leaf, `G` forest, `n` cocoa, `t` biscuit, `s` pebble.
 `outline: 'k'` draws the dark border for you.
 
-Optional extras: `opensAfter: 12` (a section's first level opens once that level is done), `fog: 0.18` (chance a bead hides its colour until exposed), `links: 0.2` (chance neighbouring turrets are chained into pairs), `topDocks: 2` (slots above the picture), `stones: 0.08` (chance a bead is
+Optional extras: `sideDocks: 1` (slots on each side of the picture), `clams: 0.12` (chance a bead is in a clam),
+`colourSlots: 1` (bottom slots that only take one colour), `merge: true` (same-coloured turrets join up),
+`opensAfter: 12` (a section's first level opens once that level is done), `fog: 0.18` (chance a bead hides its colour until exposed), `links: 0.2` (chance neighbouring turrets are chained into pairs), `topDocks: 2` (slots above the picture), `stones: 0.08` (chance a bead is
 covered by a stone; hammer turrets are added automatically), `secret: true` (left out of the picture grid; the About page opens it),
 `locks: 0.2` (chance a turret is padlocked), `ice: 0.15` (chance a bead is
 frozen; `iceColors: 'w'` limits it to certain colours), `section: 'Name'` (a heading in the
