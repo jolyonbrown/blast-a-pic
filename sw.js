@@ -1,6 +1,6 @@
 // Offline support: serve from cache, refresh the cache in the background.
 // Bump VERSION when files change so old caches are cleared.
-const VERSION = 'v7';
+const VERSION = 'v8';
 const CACHE = `blast-a-pic-${VERSION}`;
 const FILES = [
   './',
@@ -9,7 +9,7 @@ const FILES = [
   './js/main.js',
   './js/engine.js',
   './js/levels.js',
-  './js/art-space.js',
+  './js/art-space.js', './js/art-sea.js',
   './js/render.js',
   './js/audio.js',
   './manifest.webmanifest',

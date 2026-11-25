@@ -1,13 +1,13 @@
 import { LEVELS, TIPS } from './levels.js';
 import * as engine from './engine.js';
-import { PALETTE, buildLevel, pictureOf, newState, cloneState, place, tick, isStuck, stuckReason, canAnyFire, firstFreeDock, freeSides, sidesFor, dockSide, frontTile, findTarget, lockLeft } from './engine.js';
-import { beadSprite, iceSprite, stoneSprite, fogSprite, drawTurret, drawMystery, drawLock, drawPad, roundRect, clearSpriteCache } from './render.js';
+import { PALETTE, buildLevel, pictureOf, newState, cloneState, place, tick, isStuck, stuckReason, canAnyFire, sidesFor, dockSide, frontTile, findTarget, lockLeft, docksFor, mergeDock, dockColor, sideRange, clamShut } from './engine.js';
+import { beadSprite, iceSprite, stoneSprite, fogSprite, clamSprite, drawTurret, drawMystery, drawLock, drawPad, roundRect, clearSpriteCache } from './render.js';
 import { sfx, unlockAudio, setMuted } from './audio.js';
 
 // ================================================================ save data
 
 const SAVE_KEY = 'blast-a-pic:v1';
-const save = { done: [], speed: 1, muted: false, seenHelp: false, tips: [] };
+const save = { done: [], gold: [], speed: 1, muted: false, seenHelp: false, tips: [] };
 try { Object.assign(save, JSON.parse(localStorage.getItem(SAVE_KEY)) || {}); } catch { /* private mode etc. */ }
 function persist() {
   try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch { /* ignore */ }
@@ -15,6 +15,7 @@ function persist() {
 setMuted(save.muted);
 
 const isDone = (id) => save.done.includes(id);
+const isGold = (id) => save.gold.includes(id); // finished without using undo
 // A level opens once the previous (non-secret) one is done.
 function isUnlocked(i) {
   if (i === 0 || LEVELS[i].secret || isDone(LEVELS[i].id)) return true;
@@ -73,6 +74,8 @@ function startLevel(id) {
     vis: new Map(),
     departing: [],
     arrivals: [],
+    merging: [], // turrets flying in to join a same-coloured one
+    usedUndo: false,
     tickAcc: 0,
     phase: 'play',
     stuckT: 0,
@@ -119,6 +122,10 @@ function twistsIn(level) {
     stones: level.stoneColor >= 0,
     links: level.tiles.some((t) => t.link != null),
     fog: level.fog.some(Boolean),
+    sides: level.sideDocks > 0,
+    clams: !!level.clam && level.clam.some(Boolean),
+    colourSlots: !!level.dockColors,
+    merge: !!level.merge,
   };
 }
 
@@ -148,6 +155,8 @@ function doUndo() {
   game.state = game.undo.pop();
   for (const d of game.state.docks) if (d) d.arriving = false;
   game.arrivals = [];
+  game.merging = [];
+  game.usedUndo = true;
   game.shots = [];
   game.pending.clear();
   game.pendingIce.clear();
@@ -191,17 +200,18 @@ function tapColumn(c, side, dock) {
     side = sides[0];
   }
   game.choosing = -1;
-  const d = dock ?? firstFreeDock(st, side);
-  if (st.docks[d] || dockSide(st, d) !== side) return false;
-  game.undo.push(snapshot());
-  place(st, c, d, true);
-  // a linked partner travels too
-  st.docks.forEach((dk, i) => {
-    if (!dk || !dk.arriving || (dk.tile !== tile.id && dk.tile !== tile.link)) return;
-    game.arrivals.push({ dock: i, tile: dk.tile, t: ARRIVE_TIME });
-    const v = game.vis.get(dk.tile);
-    if (v) v.pop = 1;
-  });
+  const d = dock ?? docksFor(st, c, side)?.[0];
+  if (d == null || dockSide(st, d) !== side) return false;
+  const before = snapshot();
+  if (!place(st, c, d, true)) return false;
+  game.undo.push(before);
+  // a linked partner travels too; a merging turret flies in and joins the one already there
+  for (const p of st.lastPlaced) {
+    game.arrivals.push({ dock: p.dock, tile: st.docks[p.dock].tile, t: ARRIVE_TIME });
+    if (p.merged) game.merging.push({ tile: p.tile, dock: p.dock, t: ARRIVE_TIME });
+    else { const v = game.vis.get(p.tile); if (v) v.pop = 1; }
+  }
+  if (st.level.clam) sfx.clam();
   sfx.place();
   updateHud();
   return true;
@@ -223,7 +233,7 @@ function layout() {
   clearSpriteCache();
 
   const lvl = game.level;
-  const D = lvl.docks, T = lvl.topDocks || 0, C = lvl.columns.length;
+  const D = lvl.docks, T = lvl.topDocks || 0, S = lvl.sideDocks || 0, C = lvl.columns.length;
   const top = hud.getBoundingClientRect().bottom + 12;
   const pad = 16, bottomPad = 22;
   const portrait = h >= w * 1.05;
@@ -236,7 +246,9 @@ function layout() {
     const topH = T ? u + 10 : 0;
     if (T) topBox = { x: pad, y: top, w: w - 2 * pad, h: u };
     const boardH = avail * 0.5 - topH;
-    boardBox = { x: pad, y: top + topH, w: w - 2 * pad, h: boardH };
+    // Slots at the sides take their room from the picture's width.
+    const sideW = S ? u + 12 : 0;
+    boardBox = { x: pad + sideW, y: top + topH, w: w - 2 * pad - 2 * sideW, h: boardH };
     dockBox = { x: pad, y: boardBox.y + boardH + 14, w: w - 2 * pad, h: u };
     const ty = dockBox.y + u + 18;
     trayBox = { x: pad, y: ty, w: w - 2 * pad, h: h - ty - bottomPad };
@@ -246,7 +258,8 @@ function layout() {
     u = Math.min(100, ((leftW - 2 * pad) / Math.max(D, T)) * 0.86, h * (T ? 0.11 : 0.14));
     const topH = T ? u + 10 : 0;
     if (T) topBox = { x: pad, y: top, w: leftW - 2 * pad, h: u };
-    boardBox = { x: pad, y: top + topH, w: leftW - 2 * pad, h: h - top - topH - bottomPad - u - 18 };
+    const sideW = S ? u + 12 : 0;
+    boardBox = { x: pad + sideW, y: top + topH, w: leftW - 2 * pad - 2 * sideW, h: h - top - topH - bottomPad - u - 18 };
     dockBox = { x: pad, y: boardBox.y + boardBox.h + 12, w: leftW - 2 * pad, h: u };
     const rx = leftW + pad, rw = w - leftW - 2 * pad;
     trayBox = { x: rx, y: top + 8, w: rw, h: h - top - 8 - bottomPad };
@@ -263,10 +276,12 @@ function layout() {
   L = {
     board: { x: bx, y: by, w: bw, h: bh, cell, ox: bx + fp * cell, oy: by + fp * cell },
     u,
-    // bottom slots first, then the ones above the picture (same order as state.docks)
+    // bottom slots first, then above the picture, then left and right (same order as state.docks)
     docks: [
       ...Array.from({ length: D }, (_, i) => ({ x: dockBox.x + (dockBox.w * (i + 0.5)) / D, y: dockBox.y + u / 2 })),
       ...Array.from({ length: T }, (_, i) => ({ x: topBox.x + (topBox.w * (i + 0.5)) / T, y: topBox.y + u / 2 })),
+      ...Array.from({ length: S }, (_, i) => ({ x: bx - 10 - u / 2, y: by + (bh * (i + 0.5)) / S })),
+      ...Array.from({ length: S }, (_, i) => ({ x: bx + bw + 10 + u / 2, y: by + (bh * (i + 0.5)) / S })),
     ],
     t,
     rowH,
@@ -333,6 +348,15 @@ function update(dt) {
     if (d && d.tile === a.tile) d.arriving = false;
   }
   g.arrivals = g.arrivals.filter((a) => a.t > 0);
+  for (const m of g.merging) {
+    m.t -= dt * Math.max(1, speed * 0.75);
+    if (m.t > 0) continue;
+    g.vis.delete(m.tile);
+    const d = g.state.docks[m.dock], v = d && g.vis.get(d.tile);
+    if (v) { v.pop = 1; for (let i = 0; i < 8; i++) spark(v.x, v.y, g.level.hex[d.color]); }
+    sfx.merge();
+  }
+  g.merging = g.merging.filter((m) => m.t > 0);
 
   // Volleys.
   if (g.phase === 'play') {
@@ -385,12 +409,13 @@ function update(dt) {
   if (g.level.fog) {
     const st = g.state;
     for (let x = 0; x < st.W; x++) {
-      for (const y of st.T > 0 ? [st.bottom[x], st.top[x]] : [st.bottom[x]]) {
-        const i = y * st.W + x;
-        if (y < 0 || !g.level.fog[i] || g.revealed.has(i)) continue;
-        g.revealed.add(i);
-        if (g.time > 0.3) { const p = beadCenter(i); for (let k = 0; k < 4; k++) spark(p.x, p.y, g.level.hex[st.cells[i]]); }
-      }
+      for (const y of st.T > 0 ? [st.bottom[x], st.top[x]] : [st.bottom[x]]) if (y >= 0) reveal(y * st.W + x);
+    }
+    if (st.S > 0) for (let y = 0; y < st.H; y++) for (const x of [st.left[y], st.right[y]]) if (x >= 0) reveal(y * st.W + x);
+    function reveal(i) {
+      if (!g.level.fog[i] || g.revealed.has(i)) return;
+      g.revealed.add(i);
+      if (g.time > 0.3) { const p = beadCenter(i); for (let k = 0; k < 4; k++) spark(p.x, p.y, g.level.hex[st.cells[i]]); }
     }
   }
 
@@ -444,13 +469,18 @@ function update(dt) {
   updateVisuals(dt);
 }
 
+// Which way each row of slots faces (towards the picture), and where its turrets rest their aim.
+const TOWARD = { bottom: [0, -1], top: [0, 1], left: [1, 0], right: [-1, 0] };
+const REST_AIM = { top: Math.PI / 2, left: 0, right: Math.PI };
+
 function fire(shots) {
   const g = game;
   shots.forEach((s, n) => {
     const v = g.vis.get(s.tile);
     const to = beadCenter(s.cell);
-    const top = dockSide(g.state, s.dock) === 'top';
-    const from = v ? { x: v.x, y: v.y + (top ? 0.08 : -0.08) * L.u } : L.docks[s.dock]; // body centre
+    const side = dockSide(g.state, s.dock);
+    const [tx, ty] = TOWARD[side];
+    const from = v ? { x: v.x + tx * 0.08 * L.u, y: v.y + ty * 0.08 * L.u } : L.docks[s.dock]; // body centre
     const aim = Math.atan2(to.y - from.y, to.x - from.x);
     const reach = L.u * 0.44;
     const shot = {
@@ -464,7 +494,7 @@ function fire(shots) {
     else g.pendingIce.add(s.cell);
     if (v) { v.aim = aim; v.recoil = 1; }
     if (s.done) {
-      g.departing.push({ tile: s.tile, t: -0.18, x: v ? v.x : from.x, y: v ? v.y : from.y, aim, flip: top });
+      g.departing.push({ tile: s.tile, t: -0.18, x: v ? v.x : from.x, y: v ? v.y : from.y, aim, side });
       g.vis.delete(s.tile);
       setTimeout(() => sfx.done(), 160);
     }
@@ -476,7 +506,10 @@ function startWin() {
   const g = game;
   g.phase = 'winning';
   g.winT = 0;
-  if (!isDone(g.level.id)) { save.done.push(g.level.id); persist(); }
+  if (!isDone(g.level.id)) save.done.push(g.level.id);
+  g.newGold = !g.usedUndo && !isGold(g.level.id);
+  if (g.newGold) save.gold.push(g.level.id);
+  persist();
   const { W, H, cells } = g.level;
   g.rebuild = [];
   for (let i = 0; i < cells.length; i++) {
@@ -495,7 +528,11 @@ function updateVisuals(dt) {
   g.state.docks.forEach((d, i) => d && docked.set(d.tile, i));
   for (const t of g.level.tiles) {
     let target;
-    if (docked.has(t.id)) {
+    const merging = g.merging.find((m) => m.tile === t.id);
+    if (merging) {
+      const p = L.docks[merging.dock];
+      target = { x: p.x, y: p.y, s: 0.7, a: 1 };
+    } else if (docked.has(t.id)) {
       const p = L.docks[docked.get(t.id)];
       target = { x: p.x, y: p.y, s: 1, a: 1 };
     } else {
@@ -518,8 +555,11 @@ function updateVisuals(dt) {
     v.a += (target.a - v.a) * k;
     v.recoil = Math.max(0, v.recoil - dt * 6);
     v.pop = Math.max(0, v.pop - dt * 3);
-    if (!docked.has(t.id)) v.aim += (-Math.PI / 2 - v.aim) * k * 0.5;
-    else if (dockSide(g.state, docked.get(t.id)) === 'top' && v.recoil === 0) v.aim += (Math.PI / 2 - v.aim) * k * 0.25;
+    if (!docked.has(t.id)) { if (!merging) v.aim += (-Math.PI / 2 - v.aim) * k * 0.5; }
+    else {
+      const rest = REST_AIM[dockSide(g.state, docked.get(t.id))];
+      if (rest != null && v.recoil === 0) v.aim += Math.atan2(Math.sin(rest - v.aim), Math.cos(rest - v.aim)) * k * 0.25;
+    }
     v.nextBlink -= dt;
     if (v.nextBlink < 0) { v.blink = 1; v.nextBlink = 2 + Math.random() * 5; }
     v.blink = Math.max(0, v.blink - dt * 7);
@@ -601,16 +641,35 @@ function draw() {
       if (cells[i] >= 0 && (stone[i] || g.pendingStone.has(i)))
         ctx.drawImage(rock, board.ox + (i % W) * cell, board.oy + ((i / W) | 0) * cell, cell, cell);
     }
+    if (g.level.clam) {
+      // Open clams wear a little shell lid; shut ones are covered, with a peek of their colour.
+      const open = clamSprite(cell * dpr, false), shut = clamSprite(cell * dpr, true);
+      for (let i = 0; i < cells.length; i++) {
+        if (!g.level.clam[i] || (cells[i] < 0 && !g.pending.has(i))) continue;
+        const x = board.ox + (i % W) * cell, y = board.oy + ((i / W) | 0) * cell;
+        const closed = cells[i] >= 0 && clamShut(g.state, i);
+        ctx.drawImage(closed ? shut : open, x, y, cell, cell);
+        if (closed) {
+          const fogged = g.level.fog && g.level.fog[i] && !g.revealed.has(i);
+          ctx.fillStyle = fogged ? '#a98fe0' : g.level.hex[cells[i]];
+          ctx.beginPath();
+          ctx.arc(x + cell / 2, y + cell * 0.62, cell * 0.17, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+    }
   }
 
   // pads
-  for (const d of L.docks) drawPad(ctx, d.x, d.y, L.u, 'dock');
-  // While a turret is picked up, the free slots glow to show where it can go.
+  L.docks.forEach((d, i) => {
+    drawPad(ctx, d.x, d.y, L.u, 'dock');
+    const dc = dockColor(g.state, i);
+    if (dc >= 0) drawColourSlot(d.x, d.y, L.u, g.level.hex[dc], !g.state.docks[i]);
+  });
+  // While a turret is picked up, the slots it can use glow to show where it can go.
   if (g.choosing >= 0) {
     const glow = 0.55 + Math.sin(g.time * 6) * 0.35;
-    const ok = sidesFor(g.state, g.choosing);
-    g.state.docks.forEach((d, i) => {
-      if (d || !ok.includes(dockSide(g.state, i))) return;
+    for (const i of usableDocks(g.state, g.choosing)) {
       const p = L.docks[i], sz = L.u * 0.94;
       ctx.save();
       ctx.strokeStyle = `rgba(123,92,196,${glow})`;
@@ -618,7 +677,7 @@ function draw() {
       roundRect(ctx, p.x - sz / 2, p.y - sz / 2, sz, sz, sz * 0.2);
       ctx.stroke();
       ctx.restore();
-    });
+    }
   }
   for (const c of L.cols) drawPad(ctx, c.x, c.y, L.t, 'tray');
 
@@ -674,11 +733,18 @@ function draw() {
     const v = g.vis.get(d.tile);
     if (!v) return;
     const u = L.u * v.s * (1 + v.pop * 0.12);
-    const top = dockSide(g.state, i) === 'top';
-    drawTurret(ctx, v.x, v.y, u, g.level.hex[d.color], { count: d.count, aim: v.aim, recoil: v.recoil, blink: v.blink, hammer: d.color === g.level.stoneColor, flip: top });
+    drawTurretOn(dockSide(g.state, i), v.x, v.y, u, g.level.hex[d.color], { count: d.count, aim: v.aim, recoil: v.recoil, blink: v.blink, hammer: d.color === g.level.stoneColor });
     // the "waiting" bubble sits on the base plate side, away from the barrel
     if (!d.arriving && g.phase === 'play' && findTarget(g.state, i, d.color) < 0 && !g.shots.length) drawWaiting(v.x, v.y - 0.55 * u, u);
   });
+
+  // turrets flying in to merge
+  for (const m of g.merging) {
+    const v = g.vis.get(m.tile);
+    if (!v) continue;
+    const tile = g.level.tiles[m.tile];
+    drawTurretOn(dockSide(g.state, m.dock), v.x, v.y, L.u * v.s, g.level.hex[tile.color], { aim: v.aim, blink: v.blink, hammer: tile.color === g.level.stoneColor });
+  }
 
   // departing turrets hop off
   for (const d of g.departing) {
@@ -688,7 +754,7 @@ function draw() {
     ctx.save();
     ctx.globalAlpha = Math.max(0, 1 - t * 2);
     const tile = g.level.tiles[d.tile];
-    drawTurret(ctx, d.x, d.y - t * 60, L.u * s, g.level.hex[tile.color], { aim: d.aim, count: 0, hammer: tile.color === g.level.stoneColor, flip: d.flip });
+    drawTurretOn(d.side, d.x, d.y - t * 60, L.u * s, g.level.hex[tile.color], { aim: d.aim, count: 0, hammer: tile.color === g.level.stoneColor });
     ctx.restore();
   }
 
@@ -727,6 +793,57 @@ function draw() {
     }
   }
   ctx.globalAlpha = 1;
+}
+
+// Turrets face the picture: upside down above it, on their side to its left and right.
+function drawTurretOn(side, x, y, u, hex, opts) {
+  if (side !== 'left' && side !== 'right') return drawTurret(ctx, x, y, u, hex, { ...opts, flip: side === 'top' });
+  const rot = side === 'left' ? Math.PI / 2 : -Math.PI / 2;
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(rot);
+  drawTurret(ctx, 0, 0, u, hex, { ...opts, aim: (opts.aim ?? rot - Math.PI / 2) - rot, count: undefined });
+  ctx.restore();
+  if (opts.count != null) {
+    // the ammo count stays upright, on the base plate
+    ctx.fillStyle = '#fff';
+    ctx.font = `800 ${Math.round(u * 0.2)}px ui-rounded, "SF Pro Rounded", system-ui, sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(String(opts.count), x + (side === 'left' ? -1 : 1) * u * 0.235, y);
+  }
+}
+
+// A slot that only takes one colour: a ring of that colour, and a bead showing in it while empty.
+function drawColourSlot(x, y, u, hex, empty) {
+  const sz = u * 0.8;
+  ctx.save();
+  ctx.strokeStyle = hex;
+  ctx.lineWidth = Math.max(2, u * 0.07);
+  ctx.setLineDash([u * 0.1, u * 0.06]);
+  roundRect(ctx, x - sz / 2, y - sz / 2, sz, sz, sz * 0.2);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.globalAlpha = empty ? 0.55 : 1;
+  const b = empty ? u * 0.34 : u * 0.2;
+  const bx = empty ? x - b / 2 : x + sz / 2 - b * 0.7, by = empty ? y - b / 2 : y - sz / 2 - b * 0.3;
+  ctx.drawImage(beadSprite(hex, b * dpr), bx, by, b, b);
+  ctx.restore();
+}
+
+// Slots the picked-up turret could go to: a same-coloured turret it would join,
+// or free slots that take its colour.
+function usableDocks(st, c) {
+  const tile = frontTile(st, c);
+  const out = [];
+  if (!tile) return out;
+  for (const side of sidesFor(st, c)) {
+    const m = tile.link == null ? mergeDock(st, side, tile.color) : -1;
+    if (m >= 0) { out.push(m); continue; }
+    const [from, to] = sideRange(st, side);
+    for (let d = from; d < to; d++) if (!st.docks[d] && (dockColor(st, d) < 0 || dockColor(st, d) === tile.color)) out.push(d);
+  }
+  return out;
 }
 
 function drawChain(x1, y1, x2, y2, alpha) {
@@ -798,10 +915,9 @@ canvas.addEventListener('pointerdown', (e) => {
   if (!game || game.phase !== 'play') return;
   const x = e.clientX, y = e.clientY;
   if (game.choosing >= 0) {
-    for (let d = 0; d < L.docks.length; d++) {
+    for (const d of usableDocks(game.state, game.choosing)) {
       const p = L.docks[d];
-      if (!game.state.docks[d] && sidesFor(game.state, game.choosing).includes(dockSide(game.state, d))
-        && Math.abs(x - p.x) < L.u * 0.5 && Math.abs(y - p.y) < L.u * 0.5) {
+      if (Math.abs(x - p.x) < L.u * 0.5 && Math.abs(y - p.y) < L.u * 0.5) {
         tapColumn(game.choosing, dockSide(game.state, d), d);
         return;
       }
@@ -876,7 +992,7 @@ function renderMenu() {
     }
     const card = document.createElement('button');
     card.type = 'button';
-    card.className = 'level-card' + (done ? ' done' : '') + (unlocked ? '' : ' locked') + (i === nextIdx ? ' next' : '');
+    card.className = 'level-card' + (done ? ' done' : '') + (isGold(def.id) ? ' gold' : '') + (unlocked ? '' : ' locked') + (i === nextIdx ? ' next' : '');
     const cv = document.createElement('canvas');
     card.append(cv);
     const name = document.createElement('div');
@@ -884,7 +1000,7 @@ function renderMenu() {
     name.textContent = unlocked ? def.name : 'Locked';
     const num = document.createElement('div');
     num.className = 'num';
-    num.textContent = done ? `★ Level ${def.id}` : `Level ${def.id}`;
+    num.textContent = isGold(def.id) ? `🌟 Level ${def.id}` : done ? `★ Level ${def.id}` : `Level ${def.id}`;
     card.append(name, num);
     card.addEventListener('click', () => {
       unlockAudio();
@@ -960,12 +1076,15 @@ function hideDialog() {
 function showStuck() {
   game.phase = 'stuck';
   sfx.stuck();
-  const full = stuckReason(game.state) === 'full';
+  const reason = stuckReason(game.state);
+  const why = {
+    full: 'Every slot is full and none of those turrets can see their colour.',
+    locked: 'The turrets that could help are still padlocked.',
+    blocked: 'None of the turrets you could send has anywhere to go, and the ones in slots can’t see their colour.',
+  }[reason];
   showDialog({
-    title: full ? 'Out of room!' : 'All locked up!',
-    text: full
-      ? "Every slot is full and none of those turrets can see their colour. Undo a move or two and try a different order. You've got as many undos as you like."
-      : "The turrets that could help are still padlocked. Undo a move or two and try a different order. You've got as many undos as you like.",
+    title: reason === 'locked' ? 'All locked up!' : 'Out of room!',
+    text: `${why} Undo a move or two and try a different order. You've got as many undos as you like.`,
     buttons: [
       { label: 'Start again', onClick: restart },
       { label: 'Undo', primary: true, onClick: doUndo },
@@ -984,7 +1103,8 @@ function showWin() {
     title: secret ? 'You blasted the maker!' : CHEERS[Math.floor(Math.random() * CHEERS.length)],
     text: secret
       ? 'That was the hardest level in the game. Seriously impressive.'
-      : next ? `“${game.level.name}” is finished and added to your collection.` : `That's every picture done. You're a bead-blasting legend! (Is there anything on the About page…?)`,
+      : (next ? `“${game.level.name}” is finished and added to your collection.` : `That's every picture done. You're a bead-blasting legend! (Is there anything on the About page…?)`)
+        + (game.newGold ? ' 🌟 Gold star: no undos!' : isGold(game.level.id) ? '' : ' (Finish it without using undo for a gold star.)'),
     art: game.level.id,
     buttons: [
       { label: 'Pictures', onClick: showMenu },
@@ -1003,6 +1123,7 @@ function showHelp() {
       <li>Fill every slot with turrets that can't see their colour and you're stuck. Undo as often as you like.</li>
       <li><b>?</b> turrets show their colour when they reach the front.</li>
       <li>Later on: <b>padlocked</b> turrets and <b>frozen</b> beads that need two hits.</li>
+      <li>Finish a picture without using undo for a <b>gold star</b>.</li>
     </ol>`,
     buttons: [{ label: "Let's go!", primary: true, onClick: hideDialog }],
   });

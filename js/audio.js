@@ -95,6 +95,15 @@ export const sfx = {
     tone({ type: 'triangle', from: 392, to: 370, dur: 0.25, vol: 0.18 });
     tone({ type: 'triangle', from: 330, to: 300, dur: 0.35, vol: 0.18, delay: 0.22 });
   },
+  clam() {
+    if (!ready('clam', 60)) return;
+    tone({ type: 'triangle', from: 300, to: 420, dur: 0.07, vol: 0.08, delay: 0.05 });
+  },
+  merge() {
+    if (!ready('merge', 60)) return;
+    tone({ type: 'sine', from: 440, to: 880, dur: 0.12, vol: 0.16 });
+    tone({ type: 'sine', from: 660, to: 1320, dur: 0.14, vol: 0.12, delay: 0.06 });
+  },
   sparkle() {
     if (!ready('sparkle', 25)) return;
     const notes = [1047, 1175, 1319, 1568, 1760, 2093];
