@@ -156,6 +156,8 @@ function doUndo() {
   for (const d of game.state.docks) if (d) d.arriving = false;
   game.arrivals = [];
   game.merging = [];
+  game.drag = null;
+  press = null;
   game.usedUndo = true;
   game.shots = [];
   game.pending.clear();
@@ -540,7 +542,11 @@ function updateVisuals(dt) {
       if (!p) { g.vis.delete(t.id); continue; }
       const visible = p.row < L.rows;
       target = { x: p.x, y: p.y, s: p.row === 0 ? 1 : 0.88, a: visible ? 1 : 0 };
-      if (p.row === 0 && g.choosing === g.level.tileLoc[t.id].c) {
+      if (p.row === 0 && g.drag && g.drag.c === g.level.tileLoc[t.id].c) {
+        target.x = g.drag.x;
+        target.y = g.drag.y;
+        target.s = 1.12;
+      } else if (p.row === 0 && g.choosing === g.level.tileLoc[t.id].c) {
         target.y -= L.t * 0.22 + Math.sin(g.time * 6) * L.t * 0.04;
         target.s = 1.1;
       }
@@ -549,8 +555,9 @@ function updateVisuals(dt) {
     }
     let v = g.vis.get(t.id);
     if (!v) { v = newVis(target.x, target.y, 0); g.vis.set(t.id, v); }
-    v.x += (target.x - v.x) * k;
-    v.y += (target.y - v.y) * k;
+    const kk = g.drag && frontTile(g.state, g.drag.c) === t ? 1 - Math.exp(-dt * 40) : k; // keep up with the finger
+    v.x += (target.x - v.x) * kk;
+    v.y += (target.y - v.y) * kk;
     v.s += (target.s - v.s) * k;
     v.a += (target.a - v.a) * k;
     v.recoil = Math.max(0, v.recoil - dt * 6);
@@ -667,9 +674,16 @@ function draw() {
     if (dc >= 0) drawColourSlot(d.x, d.y, L.u, g.level.hex[dc], !g.state.docks[i]);
   });
   // While a turret is picked up, the slots it can use glow to show where it can go.
-  if (g.choosing >= 0) {
+  const lifted = g.drag ? g.drag.c : g.choosing;
+  if (lifted >= 0) {
     const glow = 0.55 + Math.sin(g.time * 6) * 0.35;
-    for (const i of usableDocks(g.state, g.choosing)) {
+    if (g.drag && g.drag.over >= 0) {
+      const p = L.docks[g.drag.over], sz = L.u * 0.94;
+      ctx.fillStyle = 'rgba(123,92,196,0.22)';
+      roundRect(ctx, p.x - sz / 2, p.y - sz / 2, sz, sz, sz * 0.2);
+      ctx.fill();
+    }
+    for (const i of usableDocks(g.state, lifted)) {
       const p = L.docks[i], sz = L.u * 0.94;
       ctx.save();
       ctx.strokeStyle = `rgba(123,92,196,${glow})`;
@@ -684,8 +698,9 @@ function draw() {
   // tray turrets, back rows first
   const docked = new Set(g.state.docks.filter(Boolean).map((d) => d.tile));
   const trayItems = [];
+  const dragged = g.drag ? frontTile(g.state, g.drag.c) : null;
   for (const t of g.level.tiles) {
-    if (docked.has(t.id)) continue;
+    if (docked.has(t.id) || t === dragged) continue;
     const v = g.vis.get(t.id);
     const p = trayPos(t.id);
     if (!v || !p || v.a < 0.02) continue;
@@ -772,6 +787,12 @@ function draw() {
     ctx.beginPath();
     ctx.arc(x, y, Math.max(2, cell * 0.2), 0, Math.PI * 2);
     ctx.fill();
+  }
+
+  // a turret being dragged, on top of everything
+  if (dragged) {
+    const v = g.vis.get(dragged.id);
+    if (v) drawTurret(ctx, v.x, v.y, L.t * v.s, g.level.hex[dragged.color], { count: dragged.count, blink: v.blink, aim: v.aim, hammer: dragged.color === g.level.stoneColor });
   }
 
   // particles
@@ -927,7 +948,9 @@ canvas.addEventListener('pointerdown', (e) => {
     const col = L.cols[c];
     const half = L.t * 0.5;
     if (Math.abs(x - col.x) < half && y > col.y - half && y < col.y + half) {
-      tapColumn(c);
+      // a tap (decided when the finger lifts) or the start of a drag
+      press = { c, x0: x, y0: y, id: e.pointerId };
+      try { canvas.setPointerCapture(e.pointerId); } catch { /* fine */ }
       return;
     }
     // tapping a turret further back gives a gentle "not yet" wiggle
@@ -939,6 +962,57 @@ canvas.addEventListener('pointerdown', (e) => {
   }
   game.choosing = -1; // tapped somewhere else: put the turret back
 });
+
+// Pressing a front turret: lift your finger straight away and it's a tap (sent to the
+// first free slot, or picked up when there's a choice of rows). Move your finger and
+// it's a drag: the turret follows, and drops into the slot you let go over.
+let press = null;
+const DRAG_START = 10; // pixels of movement before a press becomes a drag
+
+canvas.addEventListener('pointermove', (e) => {
+  if (!press || e.pointerId !== press.id || !game || game.phase !== 'play') return;
+  const x = e.clientX, y = e.clientY;
+  if (!game.drag) {
+    if (Math.hypot(x - press.x0, y - press.y0) < DRAG_START) return;
+    if (!sidesFor(game.state, press.c).length) { // padlocked or no room: wiggle instead
+      sfx.bonk();
+      game.shake = { col: press.c, t: 0.4 };
+      press = null;
+      return;
+    }
+    game.choosing = -1;
+    game.drag = { c: press.c, x, y, over: -1 };
+    sfx.select();
+  }
+  game.drag.x = x;
+  game.drag.y = y;
+  game.drag.over = dropTarget(press.c, x, y);
+});
+
+function endPress(e, cancelled) {
+  if (!press || e.pointerId !== press.id) return;
+  const { c } = press;
+  press = null;
+  const drag = game && game.drag;
+  if (game) game.drag = null;
+  if (!game || game.phase !== 'play' || cancelled) return;
+  if (!drag) tapColumn(c);
+  else if (drag.over >= 0) tapColumn(c, dockSide(game.state, drag.over), drag.over);
+  // let go anywhere else and it hops back to the tray
+}
+canvas.addEventListener('pointerup', (e) => endPress(e, false));
+canvas.addEventListener('pointercancel', (e) => endPress(e, true));
+
+// The slot under the finger that a dragged turret can drop into, or -1. Over a
+// slot it can't use itself (taken, or another colour's) it still goes to that row.
+function dropTarget(c, x, y) {
+  const near = (d) => Math.abs(x - L.docks[d].x) < L.u * 0.6 && Math.abs(y - L.docks[d].y) < L.u * 0.6;
+  const usable = usableDocks(game.state, c).find(near);
+  if (usable != null) return usable;
+  const sides = sidesFor(game.state, c);
+  for (let d = 0; d < L.docks.length; d++) if (near(d) && sides.includes(dockSide(game.state, d))) return d;
+  return -1;
+}
 
 $('btn-home').addEventListener('click', () => { unlockAudio(); showMenu(); });
 undoBtn.addEventListener('click', () => { unlockAudio(); doUndo(); });
@@ -1117,7 +1191,7 @@ function showHelp() {
   showDialog({
     title: 'How to play',
     html: `<ol>
-      <li>Tap a turret at the front of the tray to send it to an empty slot.</li>
+      <li>Tap a turret at the front of the tray to send it to an empty slot, or drag it to the slot you want.</li>
       <li>It fires at beads of its colour, but only ones it can see from below.</li>
       <li>When its ammo runs out it hops away and frees up the slot.</li>
       <li>Fill every slot with turrets that can't see their colour and you're stuck. Undo as often as you like.</li>

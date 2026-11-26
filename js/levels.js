@@ -432,7 +432,7 @@ export const TIPS = {
   },
   topDocks: {
     title: 'Slots up top',
-    text: 'There are slots above the picture now. Turrets up there fire downwards, so you can work on a column from either end. Tap a turret, then tap the slot you want.',
+    text: 'There are slots above the picture now. Turrets up there fire downwards, so you can work on a column from either end. Tap a turret, then tap the slot you want (or drag it straight there).',
   },
   stones: {
     title: 'Stones and hammers',
